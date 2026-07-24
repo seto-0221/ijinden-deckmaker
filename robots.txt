@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://seto-0221.github.io/ijinden-deckmaker/sitemap.xml

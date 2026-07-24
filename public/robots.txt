@@ -1,3 +1,7 @@
+# 注意: Googleはホストルート(https://seto-0221.github.io/robots.txt)のrobots.txtしか読まないため、
+# プロジェクト配下にあるこのファイルはGooglebotには使われない(害もない)。
+# サイトマップの宣言はルート用リポジトリ(seto-0221.github.io)のrobots.txtで行うこと。
+# Search Consoleへのサイトマップ直接送信はこのファイルと無関係に機能する。
 User-agent: *
 Allow: /
 
