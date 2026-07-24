@@ -40,6 +40,8 @@ w.HTMLCanvasElement.prototype.toBlob = function (cb) { cb(new w.Blob(['x'])); };
 w.CompressionStream = globalThis.CompressionStream;
 w.DecompressionStream = globalThis.DecompressionStream;
 w.Response = globalThis.Response;
+w.TextEncoder = globalThis.TextEncoder;
+w.TextDecoder = globalThis.TextDecoder;
 d.dispatchEvent(new w.Event('DOMContentLoaded', { bubbles: true, cancelable: true }));
 
 const OLD_DECK = {
