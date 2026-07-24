@@ -1,0 +1,51 @@
+{
+  "cssOrder": [
+    "00-base.css",
+    "10-topbar-layout.css",
+    "20-browse.css",
+    "30-deck.css",
+    "40-manager-data.css",
+    "50-modal.css",
+    "60-responsive.css"
+  ],
+  "jsOrder": [
+    "core/01-header-constants.js",
+    "core/02-storage.js",
+    "core/03-state.js",
+    "core/04-card-index.js",
+    "features/deck/05-deck-logic.js",
+    "features/sim/06-sim-logic.js",
+    "features/import/07-import.js",
+    "ui/08-card-tile.js",
+    "features/browse/09-view.js",
+    "features/deck-editor/10-view.js",
+    "features/decks/11-views.js",
+    "features/sim/12-view.js",
+    "ui/13-modals.js",
+    "features/data/14-view.js",
+    "core/15-events.js",
+    "core/16-init.js"
+  ],
+  "cardSetOrder": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6"
+  ],
+  "thumbSetOrder": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6"
+  ],
+  "cardDataPrefix": "",
+  "cardDataSuffix": "",
+  "thumbsPrefix": "",
+  "thumbsSuffix": "",
+  "logoPrefix": "",
+  "logoSuffix": ""
+}

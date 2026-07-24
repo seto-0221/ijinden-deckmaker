@@ -1,0 +1,13 @@
+{
+  "name": "ijinden-labo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node tests/regression.test.js && node tests/deck-meta.test.js && node tests/seo.test.js",
+    "check:images": "node scripts/check-images.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

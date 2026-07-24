@@ -1,0 +1,37 @@
+/* ---------- Top bar ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; background: var(--bg-elev); border-bottom: 1px solid var(--border);
+  flex-shrink: 0; flex-wrap: wrap;
+}
+/* .brandはSEO/アクセシビリティ目的でh1要素にしている(見出しの実体はロゴ画像のalt)。
+   h1のブラウザ既定スタイル(大きなfont-size/margin)を打ち消し、従来のdivと同じ見た目を保つ */
+.brand { display: flex; align-items: center; font-weight: 700; font-size: 15px; margin: 0 10px 0 0; white-space: nowrap; letter-spacing: .02em; }
+/* ロゴはライト/ダーク2種類を用意し、テーマに応じてどちらか一方だけ表示する(暗い背景では白ロゴ、明るい背景では黒ロゴ) */
+.brand-logo { height: 40px; width: auto; display: block; }
+.brand-logo-dark { display: none; }
+:root[data-theme="dark"] .brand-logo-light { display: none; }
+:root[data-theme="dark"] .brand-logo-dark { display: block; }
+.tabs { display: flex; gap: 2px; flex: 1; flex-wrap: wrap; }
+.tab-btn {
+  border: none; background: transparent; color: var(--text-dim);
+  padding: 7px 12px; border-radius: var(--radius-sm); font-weight: 600; font-size: 13.5px;
+  transition: background .12s, color .12s;
+}
+.tab-btn:hover { background: var(--bg-elev-2); color: var(--text); }
+.tab-btn.active { background: var(--accent-dim); color: var(--accent); }
+.icon-btn {
+  border: 1px solid var(--border); background: var(--bg-elev); color: var(--text-dim);
+  width: 32px; height: 32px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+}
+.icon-btn:hover { color: var(--text); border-color: var(--text-faint); }
+
+/* ---------- Layout ---------- */
+.view { display: none; flex: 1; min-height: 0; }
+.view.active { display: flex; }
+
+.panel { background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); }
+.scroll-y { overflow-y: auto; }
+.scroll-x { overflow-x: auto; }
+

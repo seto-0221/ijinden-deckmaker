@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>イジンデンラボ｜イジンデン デッキメーカー・カード検索</title>
+<meta name="description" content="イジンデンラボは、イジンデンのデッキ作成・カード検索・デッキ管理ができる非公式Webツールです。デッキ画像の出力、共有リンク・QRコード、初動シミュレーションにも対応。無料・登録不要でブラウザからすぐ使えるデッキメーカーです。">
+<link rel="canonical" href="https://seto-0221.github.io/ijinden-deckmaker/">
+<!-- OGP: X(旧Twitter)やLINE等でリンクを共有した際のプレビュー表示用 -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://seto-0221.github.io/ijinden-deckmaker/">
+<meta property="og:title" content="イジンデンラボ｜イジンデン デッキメーカー・カード検索">
+<meta property="og:description" content="イジンデンラボは、イジンデンのデッキ作成・カード検索・デッキ管理ができる非公式Webツールです。無料・登録不要でブラウザからすぐ使えるデッキメーカーです。">
+<meta property="og:image" content="https://seto-0221.github.io/ijinden-deckmaker/ogp-image.png">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="イジンデンラボ">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="イジンデンラボ｜イジンデン デッキメーカー・カード検索">
+<meta name="twitter:description" content="イジンデンラボは、イジンデンのデッキ作成・カード検索・デッキ管理ができる非公式Webツールです。無料・登録不要でブラウザからすぐ使えるデッキメーカーです。">
+<meta name="twitter:image" content="https://seto-0221.github.io/ijinden-deckmaker/ogp-image.png">
+<!-- ファビコン・ホーム画面アイコン -->
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<!-- Webアプリマニフェスト: ホーム画面に追加した際、ブラウザのアドレスバー等を出さずアプリのように単独起動させる(display: standalone) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4f5fe0">
+<!-- iOSのホーム画面追加(Safari)向け: manifestだけでは対応しないため専用のメタタグでスタンドアロン起動にする -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="イジンデンラボ">
+<style>{{STYLES}}</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <!-- h1: ロゴ画像のalt(サイト名+主要用途)がページ唯一の見出しとしてクロールされる。見た目は従来のロゴ表示のまま -->
+    <h1 class="brand">
+      <img id="brandLogoLight" class="brand-logo brand-logo-light" alt="イジンデンラボ｜イジンデン デッキメーカー・カード検索">
+      <img id="brandLogoDark" class="brand-logo brand-logo-dark" alt="イジンデンラボ｜イジンデン デッキメーカー・カード検索">
+    </h1>
+    <nav class="tabs" id="tabNav">
+      <button class="tab-btn active" data-view="browse">カード検索</button>
+      <button class="tab-btn" data-view="decks">デッキ一覧</button>
+      <button class="tab-btn" data-view="packages">パッケージ</button>
+      <button class="tab-btn" data-view="data">データ管理</button>
+    </nav>
+    <button class="icon-btn" id="themeToggle" title="テーマ切替">🌓</button>
+  </header>
+
+  <!-- モバイルで絞り込み/デッキパネルをオーバーレイ表示する際の背景(タップで閉じる) -->
+  <div class="mobile-panel-backdrop" id="mobilePanelBackdrop"></div>
+
+  <!-- ===================== カード検索 ===================== -->
+  <section class="view active" id="view-browse">
+    <aside class="filter-col panel" id="fPanelHost"></aside>
+
+    <div class="browse-main panel">
+      <div class="browse-toolbar">
+        <button class="btn small mobile-only-btn" id="mobileFilterToggleBtn" type="button">🔍 絞り込み</button>
+        <button class="btn small mobile-only-btn" id="mobileDeckToggleBtn" type="button">🗂 デッキ</button>
+        <div class="search-box"></div>
+        <span class="result-count" id="resultCount">0件</span>
+        <div class="seg" id="viewModeSeg">
+          <button class="on" data-mode="grid">グリッド</button>
+          <button data-mode="list">リスト</button>
+        </div>
+      </div>
+      <div class="card-scroll" id="cardScroll">
+        <div class="card-grid" id="cardContainer"></div>
+        <div class="load-more-row hidden" id="loadMoreRow"><button class="btn" id="loadMoreBtn">もっと読み込む</button></div>
+
+        <!-- サイト概要(静的テキスト): JavaScript実行前の初期HTMLに含まれ、検索エンジンがサイトの内容を
+             理解できるようにするための実文章。カード検索結果の下に控えめに表示される -->
+        <section class="site-intro" aria-label="イジンデンラボについて">
+          <p><strong>イジンデンラボ</strong>は、トレーディングカードゲーム「イジンデン」の<a href="#/browse">カード検索</a>と<a href="#/decks">デッキ作成</a>ができる非公式のWebデッキメーカーです。カードを色・レベル・種類・収録弾などで絞り込んで検索し、そのままデッキに追加して、メイン・サイド・統領戦(統領/切り札)まで含めたデッキ管理ができます。</p>
+          <p>作成したデッキは、統計とレベルカーブ付きの<em>デッキ画像出力</em>、共有リンクやQRコードでの受け渡し、テキスト形式のインポート/エクスポートに対応。引きたいカードが初手にくる確率を試行する初動シミュレーションも使えます。無料・登録不要で、スマホでもPCでもブラウザからすぐ使えます。デッキのデータはお使いのブラウザ内にのみ保存されます。</p>
+          <nav class="site-intro-links" aria-label="主要機能">
+            <a href="#/browse">カード検索</a><a href="#/decks">デッキ一覧・デッキ作成</a><a href="#/packages">パッケージ(カードセット)</a><a href="#/data">データ管理・バックアップ</a>
+          </nav>
+          <p class="site-intro-note">本サイトは有志が運営する非公式ツールであり、「イジンデン」公式とは関係ありません。カードの著作権は各権利者に帰属します。</p>
+        </section>
+      </div>
+    </div>
+
+    <aside class="deck-side panel" id="deckSidePanel">
+      <div class="deck-side-head">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <label class="title" style="font-size:11.5px;font-weight:700;color:var(--text-faint);">編集中のデッキ</label>
+          <button class="btn small mobile-only-btn panel-close-btn" type="button" id="deckPanelCloseBtn">✕ 閉じる</button>
+        </div>
+        <select id="activeDeckSelect"></select>
+        <div class="form-inline">
+          <button class="btn small block" id="newDeckBtn">＋ 新規デッキ</button>
+        </div>
+        <div class="seg" id="addZoneSeg" style="width:100%;">
+          <button type="button" class="on" data-zone="main" style="flex:1;">メインへ追加</button>
+          <button type="button" data-zone="side" style="flex:1;">サイドへ追加</button>
+        </div>
+      </div>
+      <div class="deck-side-body" id="deckSideList"></div>
+      <div class="deck-side-foot">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span id="deckSideCount" style="font-size:13px;font-weight:700;">0 枚</span>
+          <span id="deckSideBadge" class="badge neutral">レギュレーション未選択</span>
+        </div>
+        <button class="btn ok block" id="saveDeckBtn">💾 デッキを保存</button>
+        <button class="btn primary block" id="gotoDeckEditBtn">開く（名前・タグなどを編集）</button>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ===================== デッキ編集(デッキ一覧からのみ遷移) ===================== -->
+  <section class="view" id="view-deck">
+    <div class="empty-state hidden" id="deckEditorEmpty" style="width:100%;"><div class="big">🃏</div>編集するデッキがありません。<br>「デッキ一覧」から開くか、新規作成してください。</div>
+    <div class="deck-editor-main" id="deckEditorMain">
+      <div class="deck-meta-form panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <button class="btn small" id="backToDecksBtn">← デッキ一覧に戻る</button>
+          <span id="deckSaveStatus" class="badge ok">✓ 保存済み</span>
+        </div>
+        <div class="form-inline" style="align-items:flex-start;">
+          <div class="thumb-picker" id="thumbPickerWrap" style="width:70px;flex-shrink:0;">
+            <div class="thumb" style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;cursor:pointer;" id="deckThumbPreview"></div>
+            <button class="btn small block" id="deckThumbChangeBtn" style="margin-top:4px;font-size:11px;padding:3px 4px;">サムネイル変更</button>
+          </div>
+          <div style="flex:2;min-width:160px;display:flex;flex-direction:column;gap:4px;">
+            <div class="stat-num-row" id="statNumsMini" style="gap:6px;"></div>
+            <div class="bar-chart" id="costCurveMini" style="height:152px;padding:2px;"></div>
+          </div>
+        </div>
+        <div class="form-inline">
+          <div class="form-row"><label>デッキ名</label><input type="text" id="deckName" placeholder="無題のデッキ"></div>
+          <div class="form-row" style="max-width:220px;"><label>レギュレーション</label><select id="deckRegulation"></select></div>
+        </div>
+        <div class="form-inline">
+          <div class="form-row"><label>デッキタイプ</label><input type="text" id="deckTypeInput" placeholder="例: デス虎ドー(任意)"></div>
+          <div class="form-row" style="max-width:220px;"><label>戦略分類</label><select id="deckStrategy"></select></div>
+        </div>
+        <div class="form-row">
+          <label>使用色（カードから自動算出）</label>
+          <div id="deckColorsRow" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:22px;font-size:12.5px;"></div>
+        </div>
+        <div class="form-row">
+          <label>タグ</label>
+          <div class="tag-input-row" id="deckTagRow"><input type="text" id="deckTagInput" placeholder="タグを入力してEnter"></div>
+        </div>
+        <div class="form-row"><label>デッキ説明（公開用）</label><textarea id="deckDescription" rows="2" placeholder="デッキのコンセプトや回し方の説明（公開デッキで表示される想定の文章）"></textarea></div>
+        <div class="form-row"><label>メモ（非公開）</label><textarea id="deckMemo" rows="2" placeholder="このデッキについての自分用メモ"></textarea></div>
+        <div id="deckTimestamps" style="font-size:11px;color:var(--text-faint);"></div>
+      </div>
+
+      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+        <span>メインデッキ</span>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <button class="btn small primary" id="mainAddBtn" data-zone="main">＋追加</button>
+          <select id="deckSortField" style="font-size:12px;padding:3px 4px;border-radius:6px;">
+            <option value="name">名前順</option>
+            <option value="color">色順</option>
+            <option value="level">レベル順</option>
+            <option value="qty">枚数順</option>
+            <option value="rarity">レアリティ順</option>
+          </select>
+          <button class="btn small" id="deckSortDirBtn" title="昇順/降順を切り替え">▲昇順</button>
+          <div class="seg" id="deckViewModeSeg">
+            <button class="on" data-mode="list">リスト</button>
+            <button data-mode="grid">グリッド</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 統領・切り札は、リスト/グリッド切替やソートのボタン列のすぐ下に表示する -->
+      <div id="leaderZoneWrap" class="hidden">
+        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>統領</span>
+          <button class="btn small primary" id="addLeaderBtn">＋ 統領を選択</button>
+        </div>
+        <div class="deck-list-group panel" id="deckLeaderList"></div>
+
+        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>切り札</span>
+          <button class="btn small primary" id="setTrumpBtn">＋ 切り札を選択</button>
+        </div>
+        <div class="deck-list-group panel" id="deckTrumpList"></div>
+      </div>
+
+      <div class="deck-list-group panel" id="deckMainList"></div>
+
+      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>サイドデッキ</span>
+        <button class="btn small primary" id="sideAddBtn" data-zone="side">＋追加</button>
+      </div>
+      <div class="deck-list-group panel" id="deckSideZoneList"></div>
+    </div>
+
+    <button class="mobile-only-btn" type="button" id="deckSideInfoOpenBtn" title="統計・チェックを表示">📊<span style="font-size:10px;">情報</span></button>
+
+    <div class="deck-editor-side" id="deckEditorSide">
+      <button type="button" id="deckSideInfoCloseBtn" title="閉じる">◀</button>
+      <div class="stat-box panel">
+        <div class="section-title" style="padding:0;">統計</div>
+        <div class="stat-num-row" id="statNums"></div>
+        <div class="section-title" style="padding:0;">レベルカーブ</div>
+        <div class="bar-chart" id="costCurve"></div>
+        <div class="section-title" style="padding:0;">色の内訳</div>
+        <div id="colorDist" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <div class="section-title" style="padding:0;">種類の内訳</div>
+        <div id="typeDist" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+      <div class="stat-box panel">
+        <div class="section-title" style="padding:0;">チェック</div>
+        <div class="validation-list" id="validationList"></div>
+      </div>
+      <div class="stat-box panel">
+        <div class="section-title" style="padding:0;">サイドチェンジ</div>
+        <div id="sideboardStatus" style="font-size:11.5px;color:var(--text-dim);"></div>
+        <button class="btn block" id="setDefaultConfigBtn">📌 現在の構成をデフォルトに設定</button>
+        <button class="btn block" id="restoreDefaultConfigBtn">↩️ デフォルトの構成に戻す</button>
+      </div>
+      <div class="stat-box panel">
+        <button class="btn ok block" id="saveDeckFromEditorBtn">💾 デッキを保存</button>
+        <button class="btn primary block" id="openCardSearchAdd">＋ カードを検索して追加</button>
+        <button class="btn block" id="openPackagePicker">パッケージから一括追加</button>
+        <button class="btn block" id="openSimBtn">🎲 初動シミュレーション</button>
+        <button class="btn block" id="exportTextBtn">デッキリストをテキスト出力</button>
+        <button class="btn block" id="exportImageBtn">デッキリストを画像で出力</button>
+        <button class="btn block" id="shareLinkBtn">🔗 共有リンクを発行</button>
+        <button class="btn block" id="duplicateDeckBtn">このデッキを複製</button>
+        <button class="btn block" id="saveAsPackageBtn">パッケージとして保存</button>
+        <button class="btn danger block" id="deleteDeckBtn">このデッキを削除</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 初動シミュレーション ===================== -->
+  <section class="view" id="view-sim">
+    <div class="deck-meta-form panel" style="max-width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <button class="btn small" id="backFromSimBtn">← 戻る</button>
+        <div style="font-weight:800;" id="simDeckNameLabel"></div>
+      </div>
+    </div>
+
+    <div class="stat-box panel">
+      <div class="section-title" style="padding:0;">条件設定</div>
+      <div class="form-inline">
+        <div class="form-row" style="max-width:140px;"><label>先攻初期手札</label><input type="number" id="simHandSize" min="1" max="15"></div>
+        <div class="form-row" style="max-width:140px;"><label>後攻追加ドロー</label><input type="number" id="simSecondDraw" min="0" max="10"></div>
+        <div class="form-row" style="max-width:160px;"><label>試行回数</label><input type="number" id="simTrials" min="500" max="200000" step="500"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" id="simMulligan" style="width:auto;"> マリガンを使う(全て戻して同じ枚数を1回だけ引き直し)</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:4px;"><input type="checkbox" id="simMainHieroToggle" style="width:auto;"> 初動成立率の計算で、ヒエロスガモスを引いていたら出す想定も加味する(2ドロー+2枚墓地)</label>
+      <button class="btn primary block" id="runSimBtn" style="margin-top:8px;">シミュレーション実行</button>
+      <div id="simMeta" style="font-size:11.5px;color:var(--text-dim);margin-top:4px;"></div>
+    </div>
+
+    <div class="stat-box panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="section-title" style="padding:0;">初動札グループ / コンボ</div>
+        <button class="btn small primary" id="addSimStarterBtn">＋ 追加</button>
+      </div>
+      <div id="simStarterList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+
+    <div class="stat-box panel">
+      <div class="section-title" style="padding:0;">初動成立率</div>
+      <div id="simStarterResults"></div>
+    </div>
+
+    <div class="stat-box panel">
+      <div class="section-title" style="padding:0;">初手で出せる色・レベル別の確率</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;" id="simLevelTabSeg">
+        <div class="seg">
+          <button class="on" data-phase="first">先攻</button>
+          <button data-phase="second">後攻</button>
+          <button data-phase="both">合計</button>
+        </div>
+      </div>
+      <div id="simLevelMatrix"></div>
+    </div>
+
+    <div class="stat-box panel">
+      <div class="section-title" style="padding:0;">カスタムコンボの成立率(ターン推移)</div>
+      <div class="form-row"><label>対象の初動札グループ</label><select id="comboProgressStarterSelect"></select></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;margin-top:2px;">
+        <input type="checkbox" id="hieroToggle" style="width:auto;">
+        1ターン目にヒエロスガモスを引いていたら出す想定も加味する(2ドローして2枚を墓地へ)
+      </label>
+      <div style="display:flex;gap:6px;margin:8px 0 6px;" id="comboProgressTabSeg">
+        <div class="seg">
+          <button class="on" data-phase="first">先攻</button>
+          <button data-phase="second">後攻</button>
+          <button data-phase="both">合計</button>
+        </div>
+      </div>
+      <div id="comboProgressChart"></div>
+    </div>
+  </section>
+
+  <!-- ===================== デッキ一覧 ===================== -->
+  <section class="view" id="view-decks">
+    <div class="manager-toolbar">
+      <input type="search" id="deckSearchInput" placeholder="デッキ名・タグ・メモで検索" style="max-width:280px;">
+      <select id="deckRegFilter"><option value="">すべてのレギュレーション</option></select>
+      <span class="result-count" id="deckManagerCount"></span>
+      <span style="flex:1;"></span>
+      <button class="btn" id="importDeckTextBtn">📋 テキストからインポート</button>
+      <button class="btn" id="importDeckQrBtn">📷 QRコードからインポート</button>
+      <button class="btn primary" id="createDeckFromManagerBtn">＋ 新規デッキ</button>
+    </div>
+    <div class="manager-grid" id="deckManagerGrid"></div>
+  </section>
+
+  <!-- ===================== パッケージ ===================== -->
+  <section class="view" id="view-packages">
+    <div class="manager-toolbar">
+      <input type="search" id="packageSearchInput" placeholder="パッケージ名・タグで検索" style="max-width:280px;">
+      <span class="result-count" id="packageManagerCount"></span>
+      <span style="flex:1;"></span>
+      <button class="btn" id="importPackageTextBtn">📋 テキストからインポート</button>
+      <button class="btn" id="importPackageQrBtn">📷 QRコードからインポート</button>
+      <button class="btn primary" id="createPackageBtn">＋ 新規パッケージ</button>
+    </div>
+    <div class="manager-grid" id="packageManagerGrid"></div>
+  </section>
+
+  <!-- ===================== データ管理 ===================== -->
+  <section class="view" id="view-data">
+    <div class="data-grid">
+      <div class="data-card panel">
+        <h3>カードデータのインポート (CSV / Excel)</h3>
+        <p>公式サイトで配布されているカードリスト(Excel/CSV)を読み込み、カードデータベースを追加・更新できます。列名は自動でマッピングを試みますが、確認画面で修正できます。</p>
+        <div class="dropzone" id="importDropzone">ファイルをドラッグ&ドロップ、またはクリックして選択<br>(.csv / .xlsx)</div>
+        <input type="file" id="importFileInput" accept=".csv,.xlsx" class="hidden">
+      </div>
+      <div class="data-card panel">
+        <h3>カードの手動追加・編集</h3>
+        <p>インポートで足りないカードや自作カードを個別に登録できます。</p>
+        <input type="search" id="manualCardSearch" placeholder="編集するカードを検索...">
+        <button class="btn" id="manualAddCardBtn">＋ カードを新規追加</button>
+      </div>
+      <div class="data-card panel">
+        <h3>バックアップ</h3>
+        <p>カードデータ・デッキ・パッケージ・設定をまとめてファイルに書き出し、別環境や後日読み込めます。</p>
+        <button class="btn" id="exportBackupBtn">全データをエクスポート (JSON)</button>
+        <div class="dropzone" id="restoreDropzone">バックアップファイルをドラッグ&ドロップ、またはクリックして選択</div>
+        <input type="file" id="restoreFileInput" accept=".json" class="hidden">
+      </div>
+      <div class="data-card panel">
+        <h3>レギュレーション管理</h3>
+        <p>標準の「通常構築」「ミニンデン」「フリー」に加え、独自のレギュレーションを追加できます。</p>
+        <div id="regulationManagerList" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <button class="btn" id="addRegulationBtn">＋ レギュレーションを追加</button>
+      </div>
+      <div class="data-card panel">
+        <h3>ストレージ使用状況</h3>
+        <p id="storageInfo">-</p>
+        <div class="progress-track"><div class="progress-fill" id="storageBar" style="width:0%"></div></div>
+        <button class="btn danger" id="resetAllBtn">すべてのデータを初期化</button>
+      </div>
+      <div class="data-card panel">
+        <h3>カードデータベース情報</h3>
+        <p id="dbInfo">-</p>
+      </div>
+      <div class="data-card panel">
+        <h3>カード画像</h3>
+        <p>公式サイトの画像は直接埋め込むと表示されないことがあります（サイト側のホットリンク対策の可能性）。確実に表示するには、このHTMLファイルと同じ場所に「images」フォルダを作り、画像を置いてください。ファイル名は次のどちらでも認識します: ①公式サイト形式（例: 01_001.png、第1弾スターターはR_009.png、第2弾以降のスターターは02_Y_001.pngのような形式）、②カードID形式（例: 1-1.png）。全カード分揃っていなくても、ある分だけ自動的に表示されます。どちらの形式が各カードに対応するかは下の対応表で確認できます。</p>
+        <button class="btn" id="exportImageManifestBtn">画像ファイル名の対応表を書き出す (CSV)</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="modal-backdrop hidden" id="modalBackdrop">
+  <div class="modal" id="modalBox">
+    <div class="modal-head"><h3 id="modalTitle"></h3><button class="icon-btn" id="modalClose">✕</button></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script id="card-data" type="application/json">{{CARD_DATA}}</script>
+<script id="card-thumbs-b64" type="application/json">{{CARD_THUMBS}}</script>
+<script id="logo-assets-b64" type="application/json">{{LOGO_ASSETS}}</script>
+<!-- QRコード生成/読み取りライブラリ(オフラインでも確実に動くよう外部CDNを使わずファイルに直接埋め込み)
+     type="text/plain"にして初回ページ読み込み時には実行されないようにし、QR機能を実際に使う瞬間にensureQREncodeLib/ensureQRDecodeLibが
+     テキストとして取り出してevalする(表示速度改善のための遅延実行) -->
+<script id="lib-qrcode-generator" type="text/plain">{{LIB_QRCODE}}</script>
+<script id="lib-jsqr" type="text/plain">{{LIB_JSQR}}</script>
+<script>{{APP_JS}}</script>
+</body>
+</html>
