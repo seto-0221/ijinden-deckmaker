@@ -40,48 +40,12 @@ const Modal = {
 };
 
 /* ---- カード詳細の拡張セクション(将来機能の受け皿) ----
-   カード個別ページに将来追加する「関連裁定」「このカードを採用した公開デッキ」「関連カード」
-   「大会での採用実績」を、データ取得(getData)+描画(render)のペアとして登録する構造。
-   getDataが空配列を返すセクションは描画自体を行わないため、データが存在しない現時点では
-   画面の見た目は従来と完全に同一になる。
-   将来はgetDataの中身を実データ源(src/data/rulings.json やサーバーAPI)に差し替えるだけでよい。 */
-const CARD_DETAIL_SECTIONS = [
-  {
-    id: 'rulings',
-    title: '関連裁定',
-    getData: (c) => [], // 将来: getRulingsForCard(c.id)
-    render: (items) => items.map(r => `<div class="rule-text"><b>Q.</b> ${escapeHtml(r.q)}<br><b>A.</b> ${escapeHtml(r.a)}${r.date ? `<div style="font-size:11px;color:var(--text-faint);">${escapeHtml(r.source || '')} ${escapeHtml(r.date)}</div>` : ''}</div>`).join(''),
-  },
-  {
-    id: 'publicDecks',
-    title: 'このカードを採用した公開デッキ',
-    getData: (c) => [], // 将来: 公開デッキAPI
-    render: (items) => items.map(d => `<div class="kv-row"><span>${escapeHtml(d.name)}</span></div>`).join(''),
-  },
-  {
-    id: 'related',
-    title: '関連カード',
-    getData: (c) => [], // 将来: 関連カード定義
-    render: (items) => `<div style="display:flex;gap:8px;flex-wrap:wrap;">${items.map(rc => `<div class="thumb-sm" data-action="detail" data-card-id="${rc.id}">${cardThumbHtml(rc)}</div>`).join('')}</div>`,
-  },
-  {
-    id: 'results',
-    title: '大会での採用実績',
-    getData: (c) => [], // 将来: 大会結果データ
-    render: (items) => items.map(t => `<div class="kv-row"><span>${escapeHtml(t.name)}</span><span>${escapeHtml(t.result || '')}</span></div>`).join(''),
-  },
-];
-// データが存在するセクションだけHTMLを生成する(全セクション空なら空文字列を返し、画面に何も足さない)
-function cardDetailSectionsHtml(c) {
-  let html = '';
-  for (const sec of CARD_DETAIL_SECTIONS) {
-    let items = [];
-    try { items = sec.getData(c) || []; } catch (e) { console.error(`card detail section failed: ${sec.id}`, e); }
-    if (!items.length) continue;
-    html += `<div><div class="section-title" style="padding:4px 0;">${escapeHtml(sec.title)}</div>${sec.render(items)}</div>`;
-  }
-  return html;
-}
+   「関連裁定」「このカードを採用した公開デッキ」「関連カード」「大会での採用実績」の登録定義
+   (CARD_DETAIL_SECTIONS)と、その本文HTML生成(cardDetailBodyHtml/cardDetailSectionsHtml)は、
+   src/shared/card-detail-html.mjs に切り出した。ブラウザ側のこのモーダルと、Node.js側の
+   静的カードページ生成(scripts/build-card-pages.mjs)の両方が同じ関数を使うことで、
+   カードの表示ロジックを二重実装しない。getDataが空配列を返すセクションは描画自体を
+   行わないため、データが存在しない現時点では画面の見た目は従来と完全に同一。 */
 
 // onBack: 指定すると、カード詳細モーダルに「← 戻る」ボタンが表示され、押すと詳細を閉じて呼び出し元のモーダル
 // (カードを検索して追加/統領を選択/切り札を選択、など)を再度開き直す。省略時(未指定またはnull)は従来通り、
@@ -96,30 +60,9 @@ function openCardDetail(cardId, onBack = null) {
   const deck = activeDeck();
   const mainQty = deckCardQty(deck, c.id, 'main');
   const sideQty = deckCardQty(deck, c.id, 'side');
-  const body = `
-    <div style="display:flex;gap:16px;flex-wrap:wrap;">
-      <div style="width:180px;flex-shrink:0;"><div class="card-detail-img">${cardThumbHtml(c)}</div></div>
-      <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:6px;">
-        <div style="font-size:17px;font-weight:800;">${escapeHtml(c.name)}</div>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <span class="type-badge type-${c.type}">${c.type}</span>
-          ${c.colors.map(col => `<span class="color-dot c-${col}"></span>`).join('')}
-          <span class="badge neutral">${escapeHtml(c.rarity || '-')}</span>
-        </div>
-        <div class="kv-row"><span class="k">No.</span><span>${escapeHtml(String(c.set))}-${escapeHtml(c.no)}</span></div>
-        <div class="kv-row"><span class="k">収録</span><span>${escapeHtml(c.source || '-')}</span></div>
-        ${c.level !== null && c.level !== undefined ? `<div class="kv-row"><span class="k">レベル</span><span>${c.level}</span></div>` : ''}
-        ${c.cost !== null && c.cost !== undefined ? `<div class="kv-row"><span class="k">魔力コスト</span><span>${c.cost}</span></div>` : ''}
-        ${c.power !== null && c.power !== undefined ? `<div class="kv-row"><span class="k">パワー</span><span>${c.power}</span></div>` : ''}
-        ${c.trait ? `<div class="kv-row"><span class="k">特性</span><span>${escapeHtml(c.trait)}</span></div>` : ''}
-        ${c.unlimited ? `<div class="badge ok" style="width:fit-content;">デッキ投入枚数無制限</div>` : ''}
-      </div>
-    </div>
-    ${c.ruleText ? `<div><div class="section-title" style="padding:4px 0;">ルールテキスト</div><div class="rule-text">${escapeHtml(c.ruleText)}</div></div>` : ''}
-    ${c.igyouText ? `<div><div class="section-title" style="padding:4px 0;">遺業能力</div><div class="rule-text">${escapeHtml(c.igyouText)}</div></div>` : ''}
-    ${c.illustrator ? `<div class="kv-row"><span class="k">イラスト</span><span>${escapeHtml(c.illustrator)}</span></div>` : ''}
-    ${cardDetailSectionsHtml(c)}
-  `;
+  // 本文の組み立てはsrc/shared/card-detail-html.mjsのcardDetailBodyHtmlへ切り出し済み(出力は従来と同一)。
+  // imageBasePathはこのアプリの画像解決の基点(IMAGE_BASE_PATH)をそのまま渡す。
+  const body = cardDetailBodyHtml(c, { imageBasePath: IMAGE_BASE_PATH });
   const backBtnHtml = onBack ? `<button class="btn" type="button" id="cardDetailBackBtn">← 戻る</button>` : '';
   const foot = deck ? `
     <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">

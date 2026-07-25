@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}}</title>
+<meta name="description" content="{{DESCRIPTION}}">
+<link rel="canonical" href="{{CANONICAL}}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="{{CANONICAL}}">
+<meta property="og:title" content="{{OG_TITLE}}">
+<meta property="og:description" content="{{DESCRIPTION}}">
+<meta property="og:image" content="{{OG_IMAGE}}">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="イジンデンラボ">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{OG_TITLE}}">
+<meta name="twitter:description" content="{{DESCRIPTION}}">
+<meta name="twitter:image" content="{{OG_IMAGE}}">
+<link rel="icon" href="../../favicon.ico" sizes="any">
+<style>{{STYLES}}</style>
+<style>
+  /* カード個別ページ専用の軽量レイアウト。アプリ本体のtopbar/タブ切替(JS前提)は使わず、
+     クロール可能な通常のa[href]によるシンプルなヘッダー/フッターのみで構成する。 */
+  .card-page-header { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--border); }
+  .card-page-header a { font-weight:800; color:inherit; text-decoration:none; font-size:15px; }
+  .card-page-main { max-width: 720px; margin: 0 auto; padding: 16px; display:flex; flex-direction:column; gap:16px; }
+  .card-page-note { font-size:12px; color:var(--text-faint); line-height:1.6; }
+  .card-page-links { display:flex; flex-wrap:wrap; gap:8px 14px; font-size:13px; }
+  .card-page-links a { font-weight:600; }
+  h1.card-page-title { font-size:20px; margin:0; }
+</style>
+</head>
+<body>
+<header class="card-page-header">
+  <a href="../../">イジンデンラボ</a>
+</header>
+<main class="card-page-main">
+  <h1 class="card-page-title">{{H1}}</h1>
+  <section class="panel" style="padding:16px;">
+    {{BODY}}
+  </section>
+  <p class="card-page-note">本ページは、トレーディングカードゲーム「イジンデン」の非公式データベース「イジンデンラボ」によるカード情報です。「イジンデン」公式とは関係ありません。カードの著作権は各権利者に帰属します。</p>
+  <nav class="card-page-links" aria-label="関連リンク">
+    <a href="../../">イジンデンラボ トップ</a>
+    <a href="../../#/browse">カード検索</a>
+    <a href="../../#/cards/{{ID}}">🔍 アプリでこのカードを検索・デッキに追加する</a>
+  </nav>
+</main>
+</body>
+</html>

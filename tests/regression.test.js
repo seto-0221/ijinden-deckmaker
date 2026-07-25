@@ -1,8 +1,12 @@
 /**
- * ビルド成果物(dist/index.html)に対する回帰テスト。
+ * ビルド成果物(dist/index.html = Web版)に対する回帰テスト。
  * 実行: npm install && npm test
  * 見た目や機能の変更なしにソース構成だけを変えるリファクタリングでは、
  * このテストが全て通ることを「壊れていない」の基準にする。
+ *
+ * dist/index.html はWeb版(カードサムネのBase64埋め込みなし・images/を外部参照)、
+ * dist/ijinden-deckmaker.html はオフライン/配布版(従来通りフル埋め込み)。
+ * 末尾で後者に対する最小限の確認も行う。
  */
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -44,8 +48,12 @@ d.dispatchEvent(new w.Event('DOMContentLoaded', { bubbles: true, cancelable: tru
 // ---- 基本構造 ----
 check('App initialized', w.eval('typeof App') === 'object');
 check('card data loaded (576 cards)', w.eval('App.allCards.length') === 576);
-check('thumbs loaded (576 entries)', w.eval('Object.keys(CARD_THUMB_B64).length') === 576);
+// Web版はサムネのBase64埋め込みを持たない(0件)。カード検索一覧側はもともと外部images/参照のため無関係。
+check('Web版はサムネB64を埋め込まない(軽量化)', w.eval('Object.keys(CARD_THUMB_B64).length') === 0);
 check('logo assets loaded', w.eval('!!LOGO_ASSETS.headerLight && !!LOGO_ASSETS.headerDark'));
+check('imageCandidatesは相対パスのみ返す(絶対URLをハードコードしない)', w.eval(`
+  App.allCards.slice(0, 30).every(c => imageCandidates(c).every(u => !/^https?:\\/\\//.test(u) || c.imageUrl === u))
+`));
 check('brand logo wired', !!d.getElementById('brandLogoLight').getAttribute('src'));
 
 // ---- QRライブラリ遅延実行 ----
@@ -98,6 +106,41 @@ check('deckViewModeSeg before leaderZoneWrap before deckMainList', (() => {
   return ids.join(',') === 'deckViewModeSeg,leaderZoneWrap,deckMainList';
 })());
 check('renderLeaderTrumpZones respects view mode', /App\.deckViewMode === 'grid'/.test(w.eval('renderLeaderTrumpZones.toString()')));
+
+// ---- カード詳細モーダル: 共有モジュール(card-detail-html.mjs)への切り出し後も表示内容が同一であること ----
+const detailCheck = JSON.parse(w.eval(`
+  (function() {
+    const c = App.allCards.find(x => x.ruleText && x.igyouText && x.igyouText !== '-');
+    openCardDetail(c.id);
+    const body = document.getElementById('modalBody').innerHTML;
+    // openCardDetailが呼んでいるのと同じ共有関数を直接呼んだ結果と、実際にモーダルへ入った内容が一致すること
+    // (どちらもいったんDOMのinnerHTMLへ通してから比較する。ブラウザのHTMLシリアライズによる
+    //  表記ゆれ(属性の引用符等)を無視して、実質的に同じマークアップになっているかを見るため)
+    const direct = cardDetailBodyHtml(c, { imageBasePath: IMAGE_BASE_PATH });
+    const probe = document.createElement('div');
+    probe.innerHTML = direct;
+    return JSON.stringify({
+      matchesSharedFn: body === probe.innerHTML,
+      hasName: body.includes(c.name),
+      hasImg: /<img[^>]+src="images\\//.test(body),
+      hasRuleText: body.includes(c.ruleText),
+      hasSource: body.includes(c.source),
+      title: document.getElementById('modalTitle').textContent,
+    });
+  })()
+`));
+check('カード詳細: openCardDetailは共有関数cardDetailBodyHtmlの出力をそのまま使う', detailCheck.matchesSharedFn);
+check('カード詳細: カード名・画像・ルールテキスト・収録情報が表示される', detailCheck.hasName && detailCheck.hasImg && detailCheck.hasRuleText && detailCheck.hasSource);
+check('カード詳細: モーダルタイトルは従来通り「カード詳細」', detailCheck.title === 'カード詳細');
+
+// ---- オフライン/配布版(dist/ijinden-deckmaker.html): 従来通りフル埋め込みであることの最小確認 ----
+const offlineHtml = readFileSync(join(ROOT, 'dist/ijinden-deckmaker.html'), 'utf-8');
+const domOffline = new JSDOM(offlineHtml, { runScripts: 'dangerously', resources: 'usable', url: 'http://localhost/' });
+const wOffline = domOffline.window;
+wOffline.document.dispatchEvent(new wOffline.Event('DOMContentLoaded', { bubbles: true, cancelable: true }));
+check('オフライン版はApp初期化される', wOffline.eval('typeof App') === 'object');
+check('オフライン版はカード576件を保持', wOffline.eval('App.allCards.length') === 576);
+check('オフライン版は従来通りサムネB64を576件フル埋め込みする', wOffline.eval('Object.keys(CARD_THUMB_B64).length') === 576);
 
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail > 0 ? 1 : 0);

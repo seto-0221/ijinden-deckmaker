@@ -2,37 +2,10 @@
 // 画像は 1) images/フォルダ内のローカル画像(公式サイト形式のファイル名) → 2) images/フォルダ内のローカル画像(カードID形式)
 // → 3) 公式サイトの画像URL(取得できる場合) → 4) プレースホルダー の順で試す。
 // 「images」フォルダをこのHTMLファイルと同じ場所に置くと自動的に読み込まれる（データ管理タブから対応表を書き出せます）。
-
-// 公式サイトが実際に使っているファイル名の慣習を再現する:
-//   ブースター       : {set 2桁}_{No 3桁}.png                 例) 01_001.png
-//   第1弾スターター  : {英字}_{No 3桁}.png                    例) R_009.png
-//   第2弾以降スターター: {set 2桁}_{英字}_{No 3桁}.png         例) 02_Y_001.png, 03_P_016.png
-function officialImageFilename(c) {
-  const no = String(c.no || '').trim();
-  const setNum = Number(c.set);
-  if (!no || Number.isNaN(setNum)) return null;
-  const setStr = String(setNum).padStart(2, '0');
-  const letterMatch = no.match(/^([A-Za-z]+)[\s\-]?(\d+)$/);
-  if (letterMatch) {
-    const letter = letterMatch[1].toUpperCase();
-    const num = letterMatch[2].padStart(3, '0');
-    return setNum === 1 ? `${letter}_${num}.png` : `${setStr}_${letter}_${num}.png`;
-  }
-  const plainMatch = no.match(/^(\d+)$/);
-  if (plainMatch) {
-    return `${setStr}_${plainMatch[1].padStart(3, '0')}.png`;
-  }
-  return null;
-}
-
-function imageCandidates(c) {
-  const list = [];
-  const official = officialImageFilename(c);
-  if (official) list.push(`images/${official}`);
-  list.push(`images/${c.id}.png`, `images/${c.id}.jpg`, `images/${c.id}.webp`);
-  if (c.imageUrl) list.push(c.imageUrl);
-  return list;
-}
+//
+// officialImageFilename/imageCandidates/cardImageBlockHtmlは、Node.js側の静的カードページ生成
+// (scripts/build-card-pages.mjs)とロジックを二重管理しないよう、src/shared/card-detail-html.mjs
+// に定義されている(結合順の都合上、このファイルより前に読み込まれる)。
 
 function thumbFallbackHtml(c) {
   return `<div class="thumb-fallback">
@@ -55,12 +28,9 @@ function handleImgError(img) {
   if (img.parentElement && c) img.parentElement.innerHTML = thumbFallbackHtml(c);
 }
 
+// マークアップは共有モジュール(card-detail-html.mjs)のcardImageBlockHtmlと同一。
 function cardThumbHtml(c) {
-  const candidates = imageCandidates(c);
-  const first = candidates[0];
-  const rest = escapeHtml(JSON.stringify(candidates.slice(1)));
-  return `<img src="${escapeHtml(first)}" loading="lazy" alt="${escapeHtml(c.name)}"
-      data-card-id="${c.id}" data-fallbacks="${rest}" onerror="handleImgError(this)">`;
+  return cardImageBlockHtml(c, { imageBasePath: IMAGE_BASE_PATH });
 }
 
 function cardStatLine(c) {

@@ -8,6 +8,9 @@
     "50-modal.css",
     "60-responsive.css"
   ],
+  "sharedJsOrder": [
+    "shared/card-detail-html.mjs"
+  ],
   "jsOrder": [
     "core/01-header-constants.js",
     "core/02-storage.js",

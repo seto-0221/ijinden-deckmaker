@@ -1,0 +1,6 @@
+{
+  "_comment": "サイトのベースURL等を一元管理する設定。scripts/build-card-pages.mjsがカード個別ページ・sitemap.xmlのcanonical/OGP生成に使う。将来ドメインや公開パスを変更する場合はここだけ変更すればよい。トップページ(src/index.template.html)のcanonical/OGPは現状このファイルと同じ値を個別に持っている(既存のSEOテストに影響を与えないため、今回は接続していない)。",
+  "baseUrl": "https://seto-0221.github.io/ijinden-deckmaker/",
+  "siteName": "イジンデンラボ",
+  "defaultOgImage": "ogp-image.png"
+}
