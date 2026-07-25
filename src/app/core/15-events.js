@@ -106,7 +106,16 @@ function wireEvents() {
     if (!actionEl) return;
     const cardId = actionEl.dataset.cardId;
     const action = actionEl.dataset.action;
-    if (action === 'detail') { openCardDetail(cardId); return; }
+    if (action === 'detail') {
+      // カード名部分は検索エンジン向けの通常のa[href](カード個別ページ)なので、Ctrl/Cmd/Shift+クリックや
+      // 中クリックはブラウザ標準の「新しいタブで開く」動作にそのまま任せ、詳細モーダルは開かない。
+      // 通常の左クリックのみ従来通り詳細モーダルを開き、リンク遷移はpreventDefaultで打ち消す
+      // (サムネイル部分はa要素ではなくdivのため、この分岐に関係なく常に詳細モーダルを開く)。
+      if (actionEl.tagName === 'A' && (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1)) return;
+      e.preventDefault();
+      openCardDetail(cardId);
+      return;
+    }
     if (action === 'qtyset') return; // 数字入力欄は下のchangeイベントで処理する
     const deck = activeDeck();
     if (!deck) { toast('先にデッキを作成・選択してください', 'err'); return; }

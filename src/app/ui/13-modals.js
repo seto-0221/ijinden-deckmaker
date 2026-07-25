@@ -64,6 +64,9 @@ function openCardDetail(cardId, onBack = null) {
   // imageBasePathはこのアプリの画像解決の基点(IMAGE_BASE_PATH)をそのまま渡す。
   const body = cardDetailBodyHtml(c, { imageBasePath: IMAGE_BASE_PATH });
   const backBtnHtml = onBack ? `<button class="btn" type="button" id="cardDetailBackBtn">← 戻る</button>` : '';
+  // このカードの静的個別ページ(cards/<id>/、検索エンジン向けにbuild-card-pages.mjsが生成)への
+  // パーマリンク。新しいタブで開き、編集中のデッキの状態を保ったまま個別ページを確認できるようにする。
+  const permalinkHtml = `<a class="btn" href="${CARD_PAGE_BASE_PATH}${encodeURIComponent(c.id)}/" target="_blank" rel="noopener">📄 このカードの個別ページ</a>`;
   const foot = deck ? `
     <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
       ${backBtnHtml}
@@ -80,8 +83,9 @@ function openCardDetail(cardId, onBack = null) {
         <button class="btn small primary" data-action="inc" data-zone="side" data-card-id="${c.id}">＋</button>
       </div>
       <button class="btn" data-action="edit-card" data-id="${c.id}">カード情報を編集</button>
+      ${permalinkHtml}
     </div>
-  ` : `${backBtnHtml}<button class="btn" data-action="edit-card" data-id="${c.id}">カード情報を編集</button>`;
+  ` : `${backBtnHtml}<button class="btn" data-action="edit-card" data-id="${c.id}">カード情報を編集</button>${permalinkHtml}`;
   Modal.open('カード詳細', body, foot, { wide: true });
   if (onBack) {
     const backEl = document.getElementById('cardDetailBackBtn');

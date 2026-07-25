@@ -55,9 +55,18 @@ function init() {
   window.addEventListener('hashchange', applyViewFromHash);
 }
 
-// #/browse・#/decks・#/packages・#/data のハッシュを対応するビューに反映する(それ以外のハッシュは無視)。
-// フェーズ1で本格的なルーターを導入する際は、この関数がルート定義に置き換わる想定の受け皿。
+// #/browse・#/decks・#/packages・#/data・#/cards/:id のハッシュを対応する画面/動作に反映する
+// (それ以外のハッシュは無視)。フェーズ1で本格的なルーターを導入する際は、この関数がルート定義に
+// 置き換わる想定の受け皿。
 function applyViewFromHash() {
+  // #/cards/:id : カード個別静的ページの「イジンデンラボでこのカードを使う」リンクや、このURLを
+  // 直接開いた場合の入口。#dz=/#share=/#pkg=はtryImportShareLinkFromUrlが別途、部分一致(indexOf)で
+  // 検出・処理するため、こちらは完全一致の専用パスにして両者が衝突しないようにしている。
+  const mCard = location.hash.match(/^#\/cards\/([^\/?&]+)\/?$/);
+  if (mCard) {
+    openCardDetailFromHash(decodeURIComponent(mCard[1]));
+    return;
+  }
   const m = location.hash.match(/^#\/(browse|decks|packages|data)$/);
   if (!m) return;
   if (App.currentView === m[1]) return;
@@ -65,6 +74,28 @@ function applyViewFromHash() {
   // カード検索(browse)は確認なし、それ以外は未保存変更の確認を挟む
   if (m[1] === 'browse') { switchView('browse'); return; }
   confirmDiscardIfDirty(() => switchView(m[1]));
+}
+
+// #/cards/:id を開いた際の入口。カード検索(browse)へ遷移したうえで対象カードの詳細を開く。
+// browseはデッキ編集画面とworkingDeckを共有する画面のため、他のルートと違い確認なしで移動できる
+// (applyViewFromHashの#/browse分岐と同じ扱い)。存在しないIDの場合は例外を投げず、
+// 「カードが見つかりません」という分かりやすいエラーをモーダルで表示するだけに留める。
+function openCardDetailFromHash(cardId) {
+  switchView('browse');
+  const c = getCard(cardId);
+  if (!c) {
+    Modal.open(
+      'カードが見つかりません',
+      `<div class="empty-state"><div class="big">🔍</div>
+        指定されたカード(ID: ${escapeHtml(cardId)})が見つかりませんでした。<br>
+        カードデータが更新されたか、リンクが正しくない可能性があります。</div>`,
+      `<button class="btn primary" id="cardNotFoundBackBtn">カード検索に戻る</button>`
+    );
+    const btn = document.getElementById('cardNotFoundBackBtn');
+    if (btn) btn.addEventListener('click', Modal.close);
+    return;
+  }
+  openCardDetail(cardId);
 }
 
 // ページを開いたURLに #dz=...(新形式・圧縮) または #share=...(旧形式、後方互換) が付いていれば、

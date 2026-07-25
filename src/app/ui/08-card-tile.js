@@ -55,7 +55,7 @@ function cardTileHtml(c, deck) {
       ${badge}
       <div class="thumb" data-action="detail" data-card-id="${c.id}">${cardThumbHtml(c)}</div>
       <div class="meta">
-        <div class="name">${escapeHtml(c.name)}</div>
+        <a class="name" href="${CARD_PAGE_BASE_PATH}${encodeURIComponent(c.id)}/" data-action="detail" data-card-id="${c.id}">${escapeHtml(c.name)}</a>
         <div class="stats"><span class="type-badge type-${c.type}">${TYPE_SHORT[c.type] || c.type}</span>${dots}<span>${cardStatLine(c)}</span></div>
         <div class="source-label" style="font-size:10px;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(sourceLabel)}</div>
       </div>
@@ -76,7 +76,7 @@ function cardRowHtml(c, deck) {
   return `<div class="card-row" data-card-id="${c.id}">
       <div class="thumb-sm" data-action="detail" data-card-id="${c.id}">${cardThumbHtml(c)}</div>
       <span class="type-badge type-${c.type}">${TYPE_SHORT[c.type] || c.type}</span>
-      <span class="name">${escapeHtml(c.name)}</span>
+      <a class="name" href="${CARD_PAGE_BASE_PATH}${encodeURIComponent(c.id)}/" data-action="detail" data-card-id="${c.id}">${escapeHtml(c.name)}</a>
       <span class="sub">${dots} ${cardStatLine(c)} ・ ${escapeHtml(c.source || '')} ・ ${escapeHtml(c.rarity || '')}</span>
       ${zoneMini}
       <div class="qty-row">

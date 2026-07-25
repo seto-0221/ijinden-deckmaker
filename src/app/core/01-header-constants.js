@@ -24,6 +24,10 @@ const STORAGE_KEY = 'ijinden_deckmaker_v1';
 // 将来ドメイン移転やCDN移行があっても画像解決先を差し替えられるようにする。
 const IMAGE_BASE_PATH = 'images/';
 
+// カード個別静的ページ(cards/<id>/、build-card-pages.mjsが生成)への基点パス(常に相対パス)。
+// アプリ側からこのページへ通常のa[href]リンクを張る際に使う。
+const CARD_PAGE_BASE_PATH = 'cards/';
+
 const DEFAULT_REGULATIONS = [
   { id: 'standard', name: '通常構築', builtin: true, minMain: 40, maxMain: null, maxCopies: 4, sideMax: 10, totalMax: 60, note: '同名カードは4枚まで（「デッキに何枚でも入れてよい」カードを除く）。メイン40枚以上。' },
   { id: 'mininden', name: 'ミニンデン', builtin: true, minMain: 20, maxMain: 20, maxCopies: 1, maryokuMaxCopies: 4, sideMax: 0, note: '20枚固定。マリョク以外は同名1枚まで、マリョクは4枚まで。' },
