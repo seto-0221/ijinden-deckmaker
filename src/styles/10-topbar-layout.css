@@ -26,6 +26,8 @@
   font-size: 15px;
 }
 .icon-btn:hover { color: var(--text); border-color: var(--text-faint); }
+/* ログイン中はauthBtnをアクセントカラーで示す(Stage 1B: Supabase Auth) */
+.icon-btn.auth-signed-in { color: var(--accent); border-color: var(--accent); }
 
 /* ---------- Layout ---------- */
 .view { display: none; flex: 1; min-height: 0; }

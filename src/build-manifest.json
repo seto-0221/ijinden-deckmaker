@@ -8,6 +8,9 @@
     "50-modal.css",
     "60-responsive.css"
   ],
+  "sharedJsOrder": [
+    "shared/card-detail-html.mjs"
+  ],
   "jsOrder": [
     "core/01-header-constants.js",
     "core/02-storage.js",
@@ -24,7 +27,8 @@
     "ui/13-modals.js",
     "features/data/14-view.js",
     "core/15-events.js",
-    "core/16-init.js"
+    "core/16-init.js",
+    "core/17-auth.js"
   ],
   "cardSetOrder": [
     "1",

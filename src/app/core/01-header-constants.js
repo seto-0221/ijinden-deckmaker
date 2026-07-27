@@ -20,6 +20,21 @@ const RARITIES = ['N', 'R', 'SR', 'PSR'];
 
 const STORAGE_KEY = 'ijinden_deckmaker_v1';
 
+// カード画像を探しに行く基点パス(常に相対パス)。ここを1箇所変えるだけで、
+// 将来ドメイン移転やCDN移行があっても画像解決先を差し替えられるようにする。
+const IMAGE_BASE_PATH = 'images/';
+
+// カード個別静的ページ(cards/<id>/、build-card-pages.mjsが生成)への基点パス(常に相対パス)。
+// アプリ側からこのページへ通常のa[href]リンクを張る際に使う。
+const CARD_PAGE_BASE_PATH = 'cards/';
+
+// ---- Supabase Auth連携設定(Stage 1B) ----
+// ブラウザに置いてよいのはPublishable key(公開鍵)のみ。Secret key/service_role相当の鍵は絶対に書かない。
+// 値が空のうちは17-auth.jsのinitAuth()が即座に何もせず終了し、ログイン関連の機能は完全に無効化される
+// (未ログインでの既存機能には一切影響しない)。実際の値はSupabaseプロジェクト作成後に設定する。
+const SUPABASE_URL = '';
+const SUPABASE_PUBLISHABLE_KEY = '';
+
 const DEFAULT_REGULATIONS = [
   { id: 'standard', name: '通常構築', builtin: true, minMain: 40, maxMain: null, maxCopies: 4, sideMax: 10, totalMax: 60, note: '同名カードは4枚まで（「デッキに何枚でも入れてよい」カードを除く）。メイン40枚以上。' },
   { id: 'mininden', name: 'ミニンデン', builtin: true, minMain: 20, maxMain: 20, maxCopies: 1, maryokuMaxCopies: 4, sideMax: 0, note: '20枚固定。マリョク以外は同名1枚まで、マリョクは4枚まで。' },

@@ -46,6 +46,7 @@
       <button class="tab-btn" data-view="packages">パッケージ</button>
       <button class="tab-btn" data-view="data">データ管理</button>
     </nav>
+    <button class="icon-btn" id="authBtn" title="ログイン" style="display:none;">👤</button>
     <button class="icon-btn" id="themeToggle" title="テーマ切替">🌓</button>
   </header>
 
@@ -391,5 +392,14 @@
 <script id="lib-qrcode-generator" type="text/plain">{{LIB_QRCODE}}</script>
 <script id="lib-jsqr" type="text/plain">{{LIB_JSQR}}</script>
 <script>{{APP_JS}}</script>
+<!-- Service Worker登録: file://で開いた単一HTML版や非対応環境では何もしない(通常のWeb利用に影響を与えない)。
+     登録に失敗しても握りつぶし、アプリ本体の動作には一切影響させない。 -->
+<script>
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
 </body>
 </html>
