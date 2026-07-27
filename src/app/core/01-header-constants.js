@@ -32,8 +32,8 @@ const CARD_PAGE_BASE_PATH = 'cards/';
 // ブラウザに置いてよいのはPublishable key(公開鍵)のみ。Secret key/service_role相当の鍵は絶対に書かない。
 // 値が空のうちは17-auth.jsのinitAuth()が即座に何もせず終了し、ログイン関連の機能は完全に無効化される
 // (未ログインでの既存機能には一切影響しない)。実際の値はSupabaseプロジェクト作成後に設定する。
-const SUPABASE_URL = '';
-const SUPABASE_PUBLISHABLE_KEY = '';
+const SUPABASE_URL = 'https://cvmpaqwyohqoplfarscc.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_UJ4JeTzGAYtfN6k97Z7z0w_A-daEosF';
 
 const DEFAULT_REGULATIONS = [
   { id: 'standard', name: '通常構築', builtin: true, minMain: 40, maxMain: null, maxCopies: 4, sideMax: 10, totalMax: 60, note: '同名カードは4枚まで（「デッキに何枚でも入れてよい」カードを除く）。メイン40枚以上。' },

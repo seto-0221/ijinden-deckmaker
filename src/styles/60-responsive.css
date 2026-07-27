@@ -1,0 +1,110 @@
+/* ---------- モバイル用の折りたたみパネル切替ボタン(通常は非表示、狭い画面でのみ表示) ---------- */
+.mobile-only-btn { display: none; }
+/* デッキ編集画面の右側情報(統計等)を、狭い画面では右端タブ→横スライドで開閉するパネルにする */
+#deckSideInfoOpenBtn, #deckSideInfoCloseBtn { display: none; }
+
+/* ---------- 横並び2カラムのモーダル(カード検索の絞り込み+結果、など) ---------- */
+.modal-two-col { display: flex; gap: 14px; align-items: flex-start; }
+.modal-two-col .side-panel { width: 220px; flex-shrink: 0; max-height: 520px; overflow-y: auto; }
+.modal-two-col .main-panel { flex: 1; min-width: 0; }
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+@media (max-width: 880px) {
+  #view-browse { flex-direction: column; }
+  .browse-main { flex: 1; }
+
+  /* 絞り込み/デッキパネルは、狭い画面では通常時は非表示にしておき、
+     ボタンを押したら画面に浮かせたドロワー(オーバーレイ)として表示する。
+     カード一覧のスクロール位置を保持したまま、その上に重ねて表示・確認できるようにするため。
+     ※ .filter-col/.deck-sideクラスはモーダル内(カード検索追加・自作フォーマットの絞り込み)でも
+       共用されているため、ここではブラウズ画面固有の#fPanelHost/#deckSidePanelのみをID指定で対象にする。 */
+  #fPanelHost, #deckSidePanel { display: none; }
+  #fPanelHost.mobile-open, #deckSidePanel.mobile-open {
+    display: flex; flex-direction: column;
+    position: fixed; left: 8px; right: 8px; bottom: 8px; top: 12%;
+    width: auto; max-height: none; height: auto;
+    z-index: 250; border-radius: 14px; border-width: 1px;
+    box-shadow: 0 -10px 30px rgba(0,0,0,.35);
+    background: var(--bg-elev); overflow-y: auto; padding: 14px;
+  }
+  #deckSidePanel.mobile-open { padding: 0; }
+  #deckSidePanel.mobile-open .deck-side-body { flex: 1; overflow-y: auto; }
+  .panel-close-btn { margin-bottom: 4px; }
+
+  .mobile-panel-backdrop { display: none; }
+  .mobile-panel-backdrop.show {
+    display: block; position: fixed; inset: 0; background: rgba(10,12,18,.5); z-index: 240;
+  }
+  .mobile-only-btn { display: inline-flex; }
+
+  #view-deck { flex-direction: column; overflow-y: auto; }
+  .deck-editor-main { flex: none; overflow-y: visible; }
+
+  /* 統計・チェック・サイドチェンジ等の右側情報は、狭い画面では常時下に表示すると見にくいため、
+     画面右端のタブボタンを押すと横からスライドして出てくるパネルに変更する。
+     パネル自体の左端に付いた戻るボタン(タブ)を押すと、元の位置へ再びスライドして戻る。 */
+  .deck-editor-side {
+    position: fixed; top: 58px; right: 0; bottom: 0; width: 88%; max-width: 380px;
+    flex: none; margin: 0; z-index: 260; overflow-y: auto; padding: 14px;
+    background: var(--bg-elev); border-left: 1px solid var(--border);
+    box-shadow: -10px 0 28px rgba(0,0,0,.35);
+    transform: translateX(105%); transition: transform .28s ease;
+  }
+  .deck-editor-side.mobile-open { transform: translateX(0); }
+  #deckSideInfoOpenBtn {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    position: fixed; right: 0; top: 42%; z-index: 255;
+    padding: 12px 6px; border-radius: 10px 0 0 10px; border: none;
+    background: var(--accent); color: #fff; font-size: 18px; line-height: 1;
+    box-shadow: -3px 0 10px rgba(0,0,0,.25);
+  }
+  #deckSideInfoCloseBtn {
+    display: flex; align-items: center; justify-content: center;
+    position: absolute; left: -34px; top: 42%; z-index: 1;
+    padding: 12px 6px; border-radius: 10px 0 0 10px; border: none;
+    background: var(--accent); color: #fff; font-size: 15px; line-height: 1;
+    box-shadow: -3px 0 10px rgba(0,0,0,.25);
+  }
+  .form-inline { flex-direction: column; }
+  .form-inline > .form-row { max-width: none !important; width: 100%; }
+  .form-inline > .thumb-picker { width: 90px !important; align-self: flex-start; }
+
+  .modal-two-col { flex-direction: column; }
+  .modal-two-col .side-panel { width: 100%; max-height: 260px; }
+
+  /* カード名の長さによって折り返し位置がバラつき行ごとに見た目が変わってしまうため、
+     名前の右にある補足情報(レベル等)と数量操作部分は常にそれぞれ独立した行になるよう固定する */
+  .card-row { flex-wrap: wrap; row-gap: 6px; }
+  .card-row .name { min-width: 0; flex: 1 1 auto; }
+  .card-row .sub { flex: 1 1 100%; white-space: normal; }
+  .card-row > *:last-child { flex: 1 1 100%; }
+
+  .qty-btn { width: 30px; height: 30px; font-size: 15px; }
+  /* iOS Safariは16px未満のinputにフォーカスすると自動でズームし、フォーカスを外しても戻らないため、
+     数量入力欄だけスマホでは16px以上にしてズームが発生しないようにする */
+  .qty-num { font-size: 16px; }
+
+  /* デッキ編集のグリッド表示タイル: −/枚数/＋/移動/削除の5要素が並ぶため、
+     スマホの狭いタイル幅では30px角のボタンだと枚数表示が潰れてしまう。
+     タイル内のボタンだけ一回り小さくして、枚数の数字が確実に見えるようにする */
+  .card-tile .qty-row { gap: 2px; padding: 5px 5px; }
+  .card-tile .qty-btn { width: 24px; height: 26px; font-size: 13px; }
+  .card-tile .move-btn, .card-tile .del-btn { margin-left: 1px; }
+  .card-tile .qty-num { min-width: 24px; padding: 2px 0; }
+
+  .poster-actions, .item-card .row-actions { flex-wrap: wrap; }
+
+  /* シミュレーション画面: 幅が狭いと窮屈に見えるため余白を少し詰める */
+  #view-sim { padding: 10px; gap: 10px; }
+  #view-sim .stat-box { padding: 10px; gap: 8px; }
+  #view-sim .seg { flex-wrap: wrap; }
+  #view-sim .seg button { flex: 1 1 auto; padding: 6px 8px; font-size: 12.5px; }
+}
+
+@media (max-width: 480px) {
+  .modal-backdrop { padding: 8px; }
+  .modal-body { padding: 12px 14px; }
+  .modal-head { padding: 12px 14px; }
+  .modal-foot { padding: 10px 14px; flex-wrap: wrap; }
+}
+
