@@ -1,0 +1,43 @@
+# pushするだけで 検証(ビルド+回帰テスト+画像対応チェック) → 合格時のみ公開 が走るワークフロー。
+# ビルドまたはテストが失敗した場合はdeployジョブが実行されず、現在の公開版はそのまま維持されます。
+# ローカルでも同じことを実行できます: npm install && npm test && npm run check:images
+# 初回のみ: Settings → Pages → Build and deployment → Source を「GitHub Actions」に変更してください。
+name: Build and Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install test deps
+        run: npm install
+      - name: Build + regression tests   # ローカルの npm test と同一
+        run: npm test
+      - name: Card image consistency check  # ローカルの npm run check:images と同一
+        run: npm run check:images
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+  deploy:
+    needs: build   # buildジョブ(検証込み)が成功した時だけ実行される
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
