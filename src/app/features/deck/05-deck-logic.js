@@ -73,6 +73,180 @@ function normalizeTags(tags) {
   return out;
 }
 
+/* ---- 外部由来データの共通サニタイズ層 ----
+   共有リンク(#dz=/#share=)・QRコードインポート・バックアップ復元など、通常のUI入力(数量ボタン・
+   テキストインポート)を経由しない外部データは、必ずここを通してからApp.state/workingDeckへ入れること。
+   方針:「直す」のではなく「捨てる」。範囲・型から外れた要素は個別に除外し、クランプ(丸め込み)はしない。
+   同一cardIdは合算するが、合算前に無効な値(負数・NaN・Infinity・範囲外)を弾いているため、
+   「正負を相殺させて実際より少なく見せる」ことはできない(合算後に上限を超えた場合もクランプせず除外する)。
+*/
+function sanitizeCardEntries(rawList) {
+  if (!Array.isArray(rawList)) return [];
+  const merged = new Map(); // cardId -> qty(1〜DECK_QTY_MAXの正の整数のみが入る)
+  for (const raw of rawList) {
+    // [cardId, qty] のタプル形式(共有リンク/QR由来)と {cardId, qty} のオブジェクト形式
+    // (バックアップ復元由来。アプリ内部の通常形式でもある)の両方を受け付ける。
+    let cardId, qty;
+    if (Array.isArray(raw)) { cardId = raw[0]; qty = raw[1]; }
+    else if (raw && typeof raw === 'object') { cardId = raw.cardId; qty = raw.qty; }
+    else continue;
+
+    if (typeof cardId !== 'string') continue;
+    cardId = cardId.trim();
+    if (cardId.length === 0 || cardId.length > CARD_ID_MAX_LENGTH) continue;
+
+    const n = Math.floor(Number(qty));
+    if (!Number.isFinite(n)) continue;         // 非数値・NaN・Infinity/-Infinityはここで除外
+    if (n < 1 || n > DECK_QTY_MAX) continue;   // 0以下・DECK_QTY_MAX超はクランプせず除外
+
+    // ここに到達する値は必ず1〜DECK_QTY_MAXの正の整数のみなので、後続の合算で
+    // 「負数と正数が相殺して実際より少なく見える」状態は原理的に発生しない。
+    merged.set(cardId, (merged.get(cardId) || 0) + n);
+  }
+  const out = [];
+  for (const [cardId, qty] of merged) {
+    if (qty > DECK_QTY_MAX) continue; // 合算後に上限を超えた場合もクランプせず除外する
+    out.push({ cardId, qty });
+  }
+  return out;
+}
+
+// カードID配列(leaderCards等、枚数を持たない単純なID配列)のサニタイズ。
+function sanitizeCardIdList(rawList, maxCount) {
+  const list = (Array.isArray(rawList) ? rawList : [])
+    .filter(id => typeof id === 'string')
+    .map(id => id.trim())
+    .filter(id => id.length > 0 && id.length <= CARD_ID_MAX_LENGTH);
+  return typeof maxCount === 'number' ? list.slice(0, maxCount) : list;
+}
+
+// 外部由来のデッキ様オブジェクトを安全な内部形式へ正規化する。
+// 共有リンクのデコード結果(圧縮キー: n/r/m/s/l/t/tq/tags)と、
+// バックアップ復元時の内部形式(name/regulationId/mainCards/sideCards/leaderCards/trumpCard/trumpQty/tags)の
+// どちらの形でも受け付ける(どちらのキーがあればそちらを優先的に使う)。
+function sanitizeDeckPayload(raw) {
+  const src = (raw && typeof raw === 'object') ? raw : {};
+
+  const mainCards = sanitizeCardEntries(src.mainCards !== undefined ? src.mainCards : src.m);
+  const sideCards = sanitizeCardEntries(src.sideCards !== undefined ? src.sideCards : src.s);
+  const leaderCards = sanitizeCardIdList(src.leaderCards !== undefined ? src.leaderCards : src.l, 2);
+
+  let trumpCard = src.trumpCard !== undefined ? src.trumpCard : src.t;
+  trumpCard = typeof trumpCard === 'string' ? trumpCard.trim() : '';
+  if (trumpCard.length === 0 || trumpCard.length > CARD_ID_MAX_LENGTH) trumpCard = null;
+
+  let trumpQtyRaw = src.trumpQty !== undefined ? src.trumpQty : src.tq;
+  let trumpQty = Math.floor(Number(trumpQtyRaw));
+  if (!Number.isFinite(trumpQty) || trumpQty < 0 || trumpQty > DECK_QTY_MAX) trumpQty = 0;
+  if (!trumpCard) trumpQty = 0; // 切り札が無ければ枚数も持たせない(ensureLeaderFieldsと同じ考え方)
+
+  const tagsRaw = Array.isArray(src.tags) ? src.tags : [];
+  const tags = normalizeTags(tagsRaw.filter(t => typeof t === 'string'));
+
+  const nameRaw = src.name !== undefined ? src.name : src.n;
+  const name = typeof nameRaw === 'string' ? nameRaw : '';
+
+  const regRaw = src.regulationId !== undefined ? src.regulationId : src.r;
+  const regulationId = (typeof regRaw === 'string' && regRaw) ? regRaw : 'standard';
+
+  return { name, regulationId, mainCards, sideCards, leaderCards, trumpCard, trumpQty, tags };
+}
+
+// 外部由来のパッケージ様オブジェクトを安全な内部形式へ正規化する(共有リンク圧縮キー n/c/tags、
+// またはバックアップ復元時の内部形式 name/cards/tags のどちらでも受け付ける)。
+function sanitizePackagePayload(raw) {
+  const src = (raw && typeof raw === 'object') ? raw : {};
+  const cards = sanitizeCardEntries(src.cards !== undefined ? src.cards : src.c);
+  const tagsRaw = Array.isArray(src.tags) ? src.tags : [];
+  const tags = normalizeTags(tagsRaw.filter(t => typeof t === 'string'));
+  const nameRaw = src.name !== undefined ? src.name : src.n;
+  const name = typeof nameRaw === 'string' ? nameRaw : '';
+  return { name, cards, tags };
+}
+
+// 初動シミュレーションの「初動札グループ/コンボ」定義で許可するtype一覧。
+const SIM_STARTER_TYPES = ['custom', 'anyN', 'anyOfGroups', 'resource'];
+
+// simStarters(初動シミュレーションのコンボ定義)のサニタイズ。
+// 共有リンクには含まれないが、バックアップ復元ではdeck全体が外部入力になるため、
+// 細工したバックアップ経由でcomboCardsに不正なqtyを混入できてしまう(例: 負数を入れると
+// checkSimStarter側の判定が常に「成立」扱いになってしまう)。他のqty検証と同じ方針で扱う。
+// 方針:「直す」のではなく「捨てる」。不正な要素・不正な1件だけを除外し、復元全体は失敗させない。
+function sanitizeSimStarters(rawList) {
+  if (!Array.isArray(rawList)) return [];
+  const out = [];
+  for (const raw of rawList) {
+    if (!raw || typeof raw !== 'object') continue;
+    const type = (typeof raw.type === 'string' && SIM_STARTER_TYPES.includes(raw.type)) ? raw.type : null;
+    if (!type) continue; // 未知のtypeは丸ごと除外(形状が壊れたデータをそのまま持ち込まない)
+
+    const entry = {
+      id: (typeof raw.id === 'string' && raw.id) ? raw.id : uid('sim'),
+      name: typeof raw.name === 'string' ? raw.name : '',
+      type,
+    };
+
+    if (type === 'custom') {
+      // comboCardsは[{cardId, qty}]形式。sanitizeCardEntriesと全く同じ規則(1〜999の正の整数のみ・
+      // 同一cardIdは合算・相殺不可・不正値は個別除外)を適用する。
+      entry.comboCards = sanitizeCardEntries(raw.comboCards);
+    } else if (type === 'anyN') {
+      entry.cardIds = sanitizeCardIdList(raw.cardIds);
+      let needCount = Math.floor(Number(raw.needCount));
+      entry.needCount = (Number.isFinite(needCount) && needCount >= 1) ? needCount : 1;
+    } else if (type === 'anyOfGroups') {
+      entry.groupStarterIds = (Array.isArray(raw.groupStarterIds) ? raw.groupStarterIds : [])
+        .filter(id => typeof id === 'string');
+    } else { // 'resource'
+      entry.cardIds = sanitizeCardIdList(raw.cardIds);
+    }
+    out.push(entry);
+  }
+  return out;
+}
+
+// バックアップ復元(restoreBackup)専用: サニタイズ済みの中身に、id/createdAt等の付随情報を
+// (元のバックアップの値を型チェックした上で)合わせて、保存可能な1件分のデッキオブジェクトを作る。
+function sanitizeRestoredDeck(raw) {
+  const clean = sanitizeDeckPayload(raw);
+  const src = (raw && typeof raw === 'object') ? raw : {};
+  return {
+    id: (typeof src.id === 'string' && src.id) ? src.id : uid('deck'),
+    name: clean.name || '無題のデッキ',
+    regulationId: clean.regulationId,
+    mainCards: clean.mainCards,
+    sideCards: clean.sideCards,
+    leaderCards: clean.leaderCards,
+    trumpCard: clean.trumpCard,
+    trumpQty: clean.trumpQty,
+    tags: clean.tags,
+    memo: typeof src.memo === 'string' ? src.memo : '',
+    deckType: typeof src.deckType === 'string' ? src.deckType : '',
+    strategy: typeof src.strategy === 'string' ? src.strategy : '',
+    description: typeof src.description === 'string' ? src.description : '',
+    thumbnailCardId: typeof src.thumbnailCardId === 'string' ? src.thumbnailCardId : null,
+    simStarters: sanitizeSimStarters(src.simStarters),
+    createdAt: Number.isFinite(src.createdAt) ? src.createdAt : Date.now(),
+    updatedAt: Number.isFinite(src.updatedAt) ? src.updatedAt : Date.now(),
+  };
+}
+
+// バックアップ復元専用: パッケージ版のsanitizeRestoredDeck相当。
+function sanitizeRestoredPackage(raw) {
+  const clean = sanitizePackagePayload(raw);
+  const src = (raw && typeof raw === 'object') ? raw : {};
+  return {
+    id: (typeof src.id === 'string' && src.id) ? src.id : uid('pkg'),
+    name: clean.name || '無題のパッケージ',
+    tags: clean.tags,
+    memo: typeof src.memo === 'string' ? src.memo : '',
+    cards: clean.cards,
+    thumbnailCardId: typeof src.thumbnailCardId === 'string' ? src.thumbnailCardId : null,
+    createdAt: Number.isFinite(src.createdAt) ? src.createdAt : Date.now(),
+    updatedAt: Number.isFinite(src.updatedAt) ? src.updatedAt : Date.now(),
+  };
+}
+
 // デッキの使用色をカードデータから算出する純粋関数(保存はしない。表示のたびに算出する)。
 // getCardFnを引数で受け取るためテストが容易で、タッチカラーの判定方法もoptsで調整できる。
 //   opts.touchRatio      (既定0.15): マリョクを除くメイン枚数に占める割合がこれ未満の色を「タッチ」と判定
