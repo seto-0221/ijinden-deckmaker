@@ -1,15 +1,57 @@
 /* ========================= 2. ストレージ層 ========================= */
+
+// localStorageから読み込んだ外部由来のオブジェクト(data)を、あらかじめ決めた許可キーの
+// 一覧(allowedKeys)だけに限定して、新しいプレーンオブジェクトへ明示的にコピーする。
+//
+// 【重要】Object.assign(target, data) や { ...target, ...data } のような一括マージは、
+// dataが JSON.parse で作られたプレーンオブジェクトであっても、data自身が
+// "__proto__" という名前の"普通の"キーを持っていた場合(JSON.parse('{"__proto__":{...}}')は
+// これを例外的なアクセサではなく通常のown data propertyとして生成する)、
+// target.__proto__ = data.__proto__ という代入が実際に発生し、targetのプロトタイプが
+// 書き換えられてしまう(prototype pollutionに隣接する挙動)。
+//
+// この関数は、コピー先のプロパティ名を必ず「こちら側で用意した固定の許可リスト」からしか
+// 取らないため("__proto__"等の危険なキー名がdataに含まれていても、そもそも許可リストに
+// 無ければ一切読み書きされない)、上記のような書き換えは構造的に発生しない。
+// 念のため、許可リスト自体に"__proto__"/"constructor"/"prototype"が紛れ込んだ場合の
+// 保険として、コピー直前にも明示的な除外チェックを行う(多層防御)。
+function pickAllowedFields(data, defaults, allowedKeys) {
+  const src = (data && typeof data === 'object') ? data : {};
+  const out = {};
+  for (const key of allowedKeys) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+    out[key] = Object.prototype.hasOwnProperty.call(src, key) ? src[key] : defaults[key];
+  }
+  return out;
+}
+
+const STORE_TOP_LEVEL_KEYS = [
+  'schemaVersion', 'customCards', 'removedCardIds', 'decks', 'packages',
+  'regulations', 'settings', 'activeDeckId', 'seenDefaultPackageIds',
+];
+const STORE_SETTINGS_KEYS = ['theme', 'viewMode', 'sim'];
+const STORE_SETTINGS_SIM_KEYS = ['handSize', 'secondDraw', 'mulligan', 'trials', 'useHierosgamos'];
+
 const Store = {
   load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return this.defaults();
       const data = JSON.parse(raw);
-      const merged = Object.assign(this.defaults(), data);
-      // settings/sim はネストしたオブジェクトなので、旧バージョンの保存データに無いキーが
-      // 消えてしまわないよう個別にデフォルト値とマージする
-      merged.settings = Object.assign({}, this.defaults().settings, data.settings || {});
-      merged.settings.sim = Object.assign({}, this.defaults().settings.sim, (data.settings || {}).sim || {});
+      if (!data || typeof data !== 'object') return this.defaults();
+
+      const defaults = this.defaults();
+      // トップレベルは許可キー方式で新しいオブジェクトへ明示的にコピーする
+      // (Object.assign(defaults, data)のような一括マージは行わない)。
+      const merged = pickAllowedFields(data, defaults, STORE_TOP_LEVEL_KEYS);
+
+      // settings/sim はネストしたオブジェクトなので、同じ許可キー方式で個別にマージする。
+      // 旧バージョンの保存データに無いキーはdefaultsの値で補完される(互換性は維持)。
+      const rawSettings = (data.settings && typeof data.settings === 'object') ? data.settings : {};
+      merged.settings = pickAllowedFields(rawSettings, defaults.settings, STORE_SETTINGS_KEYS);
+      const rawSim = (rawSettings.sim && typeof rawSettings.sim === 'object') ? rawSettings.sim : {};
+      merged.settings.sim = pickAllowedFields(rawSim, defaults.settings.sim, STORE_SETTINGS_SIM_KEYS);
+
       return merged;
     } catch (e) {
       console.error('load failed', e);
@@ -47,4 +89,3 @@ const Store = {
     return new Blob([raw]).size;
   },
 };
-
