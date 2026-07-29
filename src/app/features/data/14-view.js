@@ -817,16 +817,72 @@ function exportImageManifest() {
   downloadFile('ijinden_image_filenames.csv', '﻿' + csv, 'text/csv');
   toast(`${sorted.length}件の画像ファイル名対応表を書き出しました`);
 }
+// バックアップ復元(restoreBackup)専用: settingsは型・範囲を検証してから復元する
+// (外部ファイル由来のため、例えばsim.trialsに極端な値が入っていると動作が重くなる等の問題を防ぐ)。
+function sanitizeSettingsForRestore(raw, defaults) {
+  const src = (raw && typeof raw === 'object') ? raw : {};
+  const simSrc = (src.sim && typeof src.sim === 'object') ? src.sim : {};
+  const numOr = (v, fallback) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? n : fallback; };
+  return {
+    theme: ['auto', 'light', 'dark'].includes(src.theme) ? src.theme : defaults.theme,
+    viewMode: ['grid', 'list'].includes(src.viewMode) ? src.viewMode : defaults.viewMode,
+    sim: {
+      handSize: Math.max(1, numOr(simSrc.handSize, defaults.sim.handSize)),
+      secondDraw: Math.max(0, numOr(simSrc.secondDraw, defaults.sim.secondDraw)),
+      mulligan: typeof simSrc.mulligan === 'boolean' ? simSrc.mulligan : defaults.sim.mulligan,
+      trials: Math.max(500, Math.min(200000, numOr(simSrc.trials, defaults.sim.trials))),
+      useHierosgamos: typeof simSrc.useHierosgamos === 'boolean' ? simSrc.useHierosgamos : defaults.sim.useHierosgamos,
+    },
+  };
+}
+
+// バックアップファイルは外部由来・検証されていないデータとして扱う。
+// 【重要】カードDB(customCards/removedCardIds)やユーザー定義レギュレーション(regulations)は、
+// バックアップの内容で置き換えない(この端末に現在あるものをそのまま維持する)。
+// これらを無検証で復元すると、例えばunlimited:trueを仕込んだカード定義や、上限のないレギュレーション
+// 定義を紛れ込ませることができてしまうため。復元してよいのは「ユーザーが作った持ち運び可能なデータ」
+// (デッキ・パッケージ・設定・直近操作の状態)のみとし、各デッキ/パッケージは必ずsanitizeRestoredDeck/
+// sanitizeRestoredPackage(05-deck-logic.js)を通す。
+const BACKUP_RESTORE_ALLOWED_KEYS = ['decks', 'packages', 'settings', 'activeDeckId', 'seenDefaultPackageIds'];
+
+// バックアップのJSON(data)と現在の状態(currentState)から、復元後の新しいApp.stateを組み立てる純粋関数。
+// restoreBackup本体から分離してあるのは、FileReaderを介さずに単体テストできるようにするため。
+// customCards/removedCardIds/regulations/schemaVersion等はcurrentStateのまま引き継ぎ、上書きしない。
+function buildRestoredStateFromBackup(data, currentState) {
+  const next = Object.assign({}, currentState);
+
+  if (Array.isArray(data.decks)) {
+    next.decks = data.decks
+      .filter(d => d && typeof d === 'object')
+      .map(d => sanitizeRestoredDeck(d));
+  }
+  if (Array.isArray(data.packages)) {
+    next.packages = data.packages
+      .filter(p => p && typeof p === 'object')
+      .map(p => sanitizeRestoredPackage(p));
+  }
+  next.settings = sanitizeSettingsForRestore(data.settings, Store.defaults().settings);
+  next.activeDeckId = (typeof data.activeDeckId === 'string' && next.decks.some(d => d.id === data.activeDeckId))
+    ? data.activeDeckId
+    : null;
+  next.seenDefaultPackageIds = Array.isArray(data.seenDefaultPackageIds)
+    ? data.seenDefaultPackageIds.filter(id => typeof id === 'string')
+    : currentState.seenDefaultPackageIds;
+
+  return next;
+}
+
 function restoreBackup(file) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
       if (!data || typeof data !== 'object') throw new Error('invalid');
-      App.state = Object.assign(Store.defaults(), data);
+
+      App.state = buildRestoredStateFromBackup(data, App.state);
       App.workingDeck = null; App.workingDeckDirty = false;
       persist(); rebuildCardIndex(); refreshAll();
-      toast('バックアップを復元しました');
+      toast(`バックアップを復元しました（${BACKUP_RESTORE_ALLOWED_KEYS.join('/')}のみ。カードデータベース・レギュレーションはこの端末の内容を維持します）`);
     } catch (e) {
       toast('復元に失敗しました。ファイルを確認してください', 'err');
     }
