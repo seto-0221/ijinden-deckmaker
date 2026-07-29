@@ -83,6 +83,11 @@ const DECK_STRATEGIES = [
 const TAG_MAX_COUNT = 10;
 const TAG_MAX_LENGTH = 20;
 
+// 外部由来データ(共有リンク・QRコード・バックアップ復元等)のサニタイズで使う共通の上限値。
+// DB側(Supabase upsert_deck RPC)のqty検証(1〜999)・cardId長検証(20文字)と揃えてある。
+const DECK_QTY_MAX = 999;
+const CARD_ID_MAX_LENGTH = 20;
+
 // マリョク色構築デフォルトパッケージ(単色5種+2色10種)。id固定でバージョン間の再適用を可能にする。
 const DEFAULT_PACKAGES = [
   {

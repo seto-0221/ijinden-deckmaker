@@ -453,12 +453,15 @@ function decodeDeckShareCode(code) {
   return JSON.parse(b64DecodeUnicode(b64));
 }
 function deckFromSharePayload(payload) {
+  // 共有リンク/QRコードは外部由来・検証されていないデータのため、必ずsanitizeDeckPayloadを通す
+  // (05-deck-logic.js参照)。qtyの符号・型・範囲、cardIdの型・長さ、同一cardIdのマージ等をここで保証する。
+  const clean = sanitizeDeckPayload(payload);
   return {
-    id: uid('deck'), name: payload.n || 'インポートしたデッキ', regulationId: payload.r || 'standard',
-    mainCards: (payload.m || []).map(([cardId, qty]) => ({ cardId, qty })),
-    sideCards: (payload.s || []).map(([cardId, qty]) => ({ cardId, qty })),
-    leaderCards: payload.l || [], trumpCard: payload.t || null, trumpQty: payload.tq || 0,
-    tags: payload.tags || [], memo: '',
+    id: uid('deck'), name: clean.name || 'インポートしたデッキ', regulationId: clean.regulationId,
+    mainCards: clean.mainCards,
+    sideCards: clean.sideCards,
+    leaderCards: clean.leaderCards, trumpCard: clean.trumpCard, trumpQty: clean.trumpQty,
+    tags: clean.tags, memo: '',
     thumbnailCardId: null, simStarters: [],
     createdAt: Date.now(), updatedAt: Date.now(),
   };
@@ -497,10 +500,12 @@ async function decodePackageShareCode(code) {
   return JSON.parse(new TextDecoder().decode(decompressed));
 }
 function packageFromSharePayload(payload) {
+  // 共有リンク/QRコードは外部由来・検証されていないデータのため、必ずsanitizePackagePayloadを通す。
+  const clean = sanitizePackagePayload(payload);
   return {
-    id: uid('pkg'), name: payload.n || 'インポートしたパッケージ',
-    tags: payload.tags || [], memo: '',
-    cards: (payload.c || []).map(([cardId, qty]) => ({ cardId, qty })),
+    id: uid('pkg'), name: clean.name || 'インポートしたパッケージ',
+    tags: clean.tags, memo: '',
+    cards: clean.cards,
     thumbnailCardId: null,
     createdAt: Date.now(), updatedAt: Date.now(),
   };
