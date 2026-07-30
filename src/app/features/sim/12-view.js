@@ -32,12 +32,12 @@ function renderSimStarterList() {
     if (s.type === 'custom') {
       detail = (s.comboCards || []).map(e => {
         const c = getCard(e.cardId);
-        return `${c ? escapeHtml(c.name) : e.cardId}×${e.qty}`;
+        return `${c ? escapeHtml(c.name) : escapeHtml(e.cardId)}×${e.qty}`;
       }).join(' + ') || '(カード未設定)';
     } else if (s.type === 'anyN') {
       const names = (s.cardIds || []).map(id => {
         const c = getCard(id);
-        return c ? escapeHtml(c.name) : id;
+        return c ? escapeHtml(c.name) : escapeHtml(id);
       }).join(' / ') || '(カード未設定)';
       detail = `${names}　のうち合計${s.needCount || 1}枚`;
     } else if (s.type === 'anyOfGroups') {
@@ -49,7 +49,7 @@ function renderSimStarterList() {
     } else {
       detail = (s.cardIds || []).map(id => {
         const c = getCard(id);
-        return c ? escapeHtml(c.name) : id;
+        return c ? escapeHtml(c.name) : escapeHtml(id);
       }).join(' / ') || '(カード未設定)';
     }
     const typeLabel = s.type === 'custom' ? 'カスタムセット' : s.type === 'anyN' ? 'N枚(組み合わせ自由)' : s.type === 'anyOfGroups' ? 'グループ化(いずれか)' : '通常(色・レベル判定)';
@@ -149,10 +149,10 @@ function openSimStarterEditor(starterId) {
       return (s.comboCards || []).map(e => {
         const c = getCard(e.cardId);
         return `<div class="deck-card-row"><div class="thumb-xs">${c ? cardThumbHtml(c) : ''}</div>
-          <span class="name">${c ? escapeHtml(c.name) : e.cardId}</span>
+          <span class="name">${c ? escapeHtml(c.name) : escapeHtml(e.cardId)}</span>
           <div class="qty-row" style="border:none;padding:0;">
-            <button class="qty-btn" data-action="simdec" data-card-id="${e.cardId}">−</button><input type="number" class="qty-num" inputmode="numeric" min="0" data-action="simset" data-card-id="${e.cardId}" value="${e.qty}">
-            <button class="qty-btn" data-action="siminc" data-card-id="${e.cardId}">＋</button>
+            <button class="qty-btn" data-action="simdec" data-card-id="${escapeHtml(e.cardId)}">−</button><input type="number" class="qty-num" inputmode="numeric" min="0" data-action="simset" data-card-id="${escapeHtml(e.cardId)}" value="${e.qty}">
+            <button class="qty-btn" data-action="siminc" data-card-id="${escapeHtml(e.cardId)}">＋</button>
           </div></div>`;
       }).join('') || `<div class="empty-state" style="padding:10px;">下の検索でカードを追加してください(全て手札にあるかで判定します)</div>`;
     }
@@ -162,8 +162,8 @@ function openSimStarterEditor(starterId) {
     return (s.cardIds || []).map(id => {
       const c = getCard(id);
       return `<div class="deck-card-row"><div class="thumb-xs">${c ? cardThumbHtml(c) : ''}</div>
-        <span class="name">${c ? escapeHtml(c.name) : id}</span>
-        <button class="btn small danger" data-action="simremove" data-card-id="${id}">削除</button></div>`;
+        <span class="name">${c ? escapeHtml(c.name) : escapeHtml(id)}</span>
+        <button class="btn small danger" data-action="simremove" data-card-id="${escapeHtml(id)}">削除</button></div>`;
     }).join('') || `<div class="empty-state" style="padding:10px;">${emptyMsg}</div>`;
   };
 

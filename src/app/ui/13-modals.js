@@ -170,10 +170,10 @@ function renderPackageEditorModal(p) {
   const rows = p.cards.map(e => {
     const c = getCard(e.cardId);
     return `<div class="deck-card-row"><div class="thumb-xs">${c ? cardThumbHtml(c) : ''}</div>
-      <span class="name">${c ? escapeHtml(c.name) : e.cardId}</span>
+      <span class="name">${c ? escapeHtml(c.name) : escapeHtml(e.cardId)}</span>
       <div class="qty-row" style="border:none;padding:0;">
-        <button class="qty-btn" data-action="pkgdec" data-card-id="${e.cardId}">−</button><input type="number" class="qty-num" inputmode="numeric" min="0" data-action="pkgset" data-card-id="${e.cardId}" value="${e.qty}">
-        <button class="qty-btn" data-action="pkginc" data-card-id="${e.cardId}">＋</button>
+        <button class="qty-btn" data-action="pkgdec" data-card-id="${escapeHtml(e.cardId)}">−</button><input type="number" class="qty-num" inputmode="numeric" min="0" data-action="pkgset" data-card-id="${escapeHtml(e.cardId)}" value="${e.qty}">
+        <button class="qty-btn" data-action="pkginc" data-card-id="${escapeHtml(e.cardId)}">＋</button>
       </div></div>`;
   }).join('') || `<div class="empty-state" style="padding:14px;">下の検索でカードを追加してください</div>`;
   const body = `

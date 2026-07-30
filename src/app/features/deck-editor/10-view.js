@@ -300,7 +300,7 @@ function renderDeckCardList(containerId, list, deck, zone) {
     }
     for (const { c, e } of grouped[type]) {
       if (!c) {
-        html += gridMode ? '' : `<div class="deck-card-row"><span class="name">(未登録: ${e.cardId})</span></div>`;
+        html += gridMode ? '' : `<div class="deck-card-row"><span class="name">(未登録: ${escapeHtml(e.cardId)})</span></div>`;
         continue;
       }
       if (gridMode) {
