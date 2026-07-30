@@ -21,6 +21,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSy
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { sha256Base64 } from './lib/csp-hash.mjs';
+import { buildProductionCspContent } from './lib/csp-policy.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'src');
@@ -41,6 +43,15 @@ const stripExportKeyword = (src) => src.replace(/^export\s+/gm, '');
 const sharedJs = (manifest.sharedJsOrder || []).map((f) => stripExportKeyword(read(f))).join('');
 
 const appJs = sharedJs + manifest.jsOrder.map((f) => read(join('app', f))).join('');
+
+// ---- 本番用Content-Security-Policy(meta http-equiv)のcontent値をここで確定する ----
+// APP_JSはWeb版・オフライン版とも上記のappJs変数を(thumbsText以外は)完全に同一のまま
+// テンプレートへ埋め込むため、ハッシュもこの1箇所だけで計算すれば両版に共通して正しい値になる
+// (生成後のHTMLを再度パースしてハッシュを計算し直す必要がない=抽出漏れ・ズレが原理的に起きない)。
+// ディレクティブ本体はscripts/lib/csp-policy.mjsを唯一の情報源とし、ローカルReport-Only
+// サーバー側と共有する(書き写しによる食い違いを防ぐため)。
+const appJsHash = sha256Base64(appJs);
+const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${buildProductionCspContent(appJsHash.digest)}">`;
 
 // カードデータ: 弾ごとのJSONを1つの配列に結合(実行時形式は従来と同一)
 const cards = manifest.cardSetOrder.flatMap((s) => JSON.parse(read(join('data/cards', `set-${s}.json`))));
@@ -70,6 +81,7 @@ function renderTemplate(thumbsText) {
     if (!html.includes(ph)) throw new Error(`placeholder not found: ${ph}`);
     html = html.replace(ph, () => text); // 第2引数を関数にして$記号の特殊解釈を防ぐ
   };
+  fill('{{CSP_META}}', cspMetaTag);
   fill('{{STYLES}}', css);
   fill('{{CARD_DATA}}', cardDataText);
   fill('{{CARD_THUMBS}}', thumbsText);

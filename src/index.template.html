@@ -2,6 +2,11 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<!-- Content-Security-Policy: <head>内の他リソース(favicon/manifest/style等)より必ず前に置く。
+     meta要素で配信する場合、このタグより前に書かれたリソースにはCSPが適用されないため
+     (CSP Level 3仕様)、charset直後・他の一切のリソース読み込みタグより前に配置する。
+     content値(ハッシュ含む)はscripts/build.mjsがビルド時に実測して生成する。 -->
+{{CSP_META}}
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>イジンデンラボ｜イジンデン デッキメーカー・カード検索</title>
 <meta name="description" content="イジンデンラボは、イジンデンのデッキ作成・カード検索・デッキ管理ができる非公式Webツールです。デッキ画像の出力、共有リンク・QRコード、初動シミュレーションにも対応。無料・登録不要でブラウザからすぐ使えるデッキメーカーです。">
@@ -391,15 +396,6 @@
      テキストとして取り出してevalする(表示速度改善のための遅延実行) -->
 <script id="lib-qrcode-generator" type="text/plain">{{LIB_QRCODE}}</script>
 <script id="lib-jsqr" type="text/plain">{{LIB_JSQR}}</script>
-<script>{{APP_JS}}</script>
-<!-- Service Worker登録: file://で開いた単一HTML版や非対応環境では何もしない(通常のWeb利用に影響を与えない)。
-     登録に失敗しても握りつぶし、アプリ本体の動作には一切影響させない。 -->
-<script>
-if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  });
-}
-</script>
+<script data-app-js>{{APP_JS}}</script>
 </body>
 </html>

@@ -76,7 +76,14 @@ self.addEventListener('fetch', (event) => {
             }
             return res;
           })
-          .catch(() => cached); // オフライン等で取得不可 → キャッシュ無しのままresolve(呼び出し側のフォールバック表示に委ねる)
+          // オフライン等で取得不可、かつキャッシュにも無い場合:
+          // このcatchに到達する時点でcachedは必ずfalsy(上のif (cached) return cached;を
+          // 通過しなかった場合のみここに来るため)。「キャッシュ無しのままresolve」ではなく、
+          // Response.error()でネットワークエラーであることを明示的に返す(respondWithに
+          // undefinedを渡す状態に頼らない)。<img onerror>側のフォールバック表示
+          // (handleImgError, src/app/ui/08-card-tile.js)は、この明示的なネットワークエラー
+          // 応答によって引き続き正しく発火する。
+          .catch(() => Response.error());
       })
     );
     return;

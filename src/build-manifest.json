@@ -28,7 +28,8 @@
     "features/data/14-view.js",
     "core/15-events.js",
     "core/16-init.js",
-    "core/17-auth.js"
+    "core/17-auth.js",
+    "core/18-service-worker.js"
   ],
   "cardSetOrder": [
     "1",

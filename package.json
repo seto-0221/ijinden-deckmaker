@@ -4,8 +4,10 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs && node scripts/build-card-pages.mjs",
-    "test": "node scripts/build.mjs && node scripts/build-card-pages.mjs && node tests/regression.test.js && node tests/store-load-sanitize.test.js && node tests/decompression-bomb.test.js && node tests/deck-meta.test.js && node tests/seo.test.js && node tests/web-images.test.js && node tests/card-pages.test.js && node tests/card-pages-xss.test.js && node tests/build-card-id.test.js && node tests/build-card-pages-integrity.test.js && node tests/hash-routing.test.js && node tests/auth-ui.test.js && node tests/deck-sanitize.test.js",
-    "check:images": "node scripts/check-images.mjs"
+    "test": "node scripts/build.mjs && node scripts/build-card-pages.mjs && node tests/regression.test.js && node tests/store-load-sanitize.test.js && node tests/decompression-bomb.test.js && node tests/deck-meta.test.js && node tests/seo.test.js && node tests/web-images.test.js && node tests/card-pages.test.js && node tests/card-pages-xss.test.js && node tests/build-card-id.test.js && node tests/build-card-pages-integrity.test.js && node tests/hash-routing.test.js && node tests/auth-ui.test.js && node tests/deck-sanitize.test.js && node tests/csp-report-only-server.test.js && node tests/production-csp-meta.test.js && node tests/service-worker.test.js",
+    "check:images": "node scripts/check-images.mjs",
+    "csp:report-only": "node scripts/csp-report-only-server.mjs",
+    "csp:hash": "node scripts/compute-csp-hash.mjs"
   },
   "devDependencies": {
     "jsdom": "^24.0.0"
