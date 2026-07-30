@@ -295,7 +295,16 @@ function pkgAdjustQty(p, cardId, delta) {
 // パッケージの共有リンクを発行するモーダル(共有リンクボタンと同様、QRコードも可能なら添える)
 async function openPackageShareModal(p) {
   toast('共有リンクを作成しています…');
-  const code = await encodePackageShareCode(p);
+  let code;
+  try {
+    code = await encodePackageShareCode(p);
+  } catch (e) {
+    // 通常は発生しないが、万一パッケージデータが共有コードの上限
+    // (decompression bomb対策で追加したSHARE_JSON_MAX_BYTES等)を超えた場合も、
+    // クラッシュさせずユーザー向けの安全なエラーとして扱う。
+    toast('共有リンクを作成できませんでした(パッケージデータが大きすぎる可能性があります)', 'err');
+    return;
+  }
   const url = location.origin + location.pathname + '#pkg=' + code;
   let qrImgHtml = '';
   let qrDataUrl = null;

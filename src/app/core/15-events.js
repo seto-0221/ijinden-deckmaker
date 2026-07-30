@@ -450,7 +450,16 @@ function wireEvents() {
   document.getElementById('shareLinkBtn').addEventListener('click', async () => {
     const d = App.workingDeck; if (!d) return;
     toast('共有リンクを作成しています…');
-    const code = await encodeDeckShareCode(d);
+    let code;
+    try {
+      code = await encodeDeckShareCode(d);
+    } catch (e) {
+      // 通常は発生しないが(既存の各フィールド上限により)、万一デッキデータが
+      // 共有コードの上限(decompression bomb対策で追加したSHARE_JSON_MAX_BYTES等)を
+      // 超えた場合も、クラッシュさせずユーザー向けの安全なエラーとして扱う。
+      toast('共有リンクを作成できませんでした(デッキデータが大きすぎる可能性があります)', 'err');
+      return;
+    }
     const url = location.origin + location.pathname + '#dz=' + code;
     let qrImgHtml = '';
     let qrDataUrl = null;

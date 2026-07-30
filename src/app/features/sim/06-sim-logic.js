@@ -368,10 +368,77 @@ function runComboProgressSimulation(deck, starter, opts) {
 // ---- 共有リンク: このツール独自の圧縮形式でデッキをURLのハッシュに埋め込む/読み戻す ----
 // (他サイトの共有リンク形式は暗号化ではなく単に独自エンコードされているだけだが、
 //  その方式が公開されていないため確実な解読はできない。本機能は弊サイト同士でのみ有効)
+//
+// ---- decompression bomb対策 ----
+// 共有コード(#dz=/#share=/#pkg=、QRコード・テキスト貼り付け経由も含む)は外部由来・
+// 未検証のデータであり、DecompressionStreamの展開後サイズには本来上限が無い。
+// 小さな圧縮データから際限なく巨大な展開結果を作り出す「decompression bomb」を防ぐため、
+// 以下の4段階それぞれに妥当な上限を設ける(値の根拠は 展開サイズ攻撃_調査と上限値提案.md 参照)。
+//   1. 圧縮前JSON文字列(UTF-8バイト数)       : SHARE_JSON_MAX_BYTES
+//   2. base64入力(共有コード本体の文字数)     : SHARE_CODE_BODY_MAX_LENGTH
+//   3. 圧縮バイト列(base64デコード後)         : SHARE_COMPRESSED_MAX_BYTES
+//   4. 展開後データ(decompress後、UTF-8バイト数): SHARE_DECOMPRESSED_MAX_BYTES
+// 4.は全量をメモリへ読み切ってから判定するのではなく、DecompressionStreamの出力を
+// ストリームで少しずつ読みながら合計サイズを監視し、上限を超えた時点で即座にreader.cancel()
+// して中断する(deflateDecompress参照)。ただしWHATWG Streams APIはブラウザ実装が
+// 1回のreadでどの程度の粒度のチャンクを返すかを規定していないため、理論上は
+// 1回のreadで上限を超える巨大なチャンクが返る可能性が完全には排除できない
+// (少なくとも「全体を無制限にバッファリングし続ける」ことは無くなる、という意味の
+// ベストエフォートな防御である点に留意)。
+//
+// 【発行側(エンコード)との対称性について】
+// 1.の判定は必ずUTF-8バイト数(TextEncoder().encode(...).byteLength)で行う。日本語・
+// 絵文字を含むJSONは、UTF-16コード単位数(文字列.length)とUTF-8バイト数が大きく異なる
+// (例: 日本語1文字はUTF-16で1コード単位・UTF-8で3バイト、絵文字はUTF-16で2コード単位・
+// UTF-8で4バイトが多い)。展開後データの上限(4.)はdecompressされた実バイト列で判定して
+// いるため、1.の判定もバイト数で揃えないと、「発行はできたが同じアプリで読み込めない」
+// 共有コードが生成されてしまう。
+// さらに、圧縮バイト数(3.)・base64本文長(2.)は圧縮率がデータ内容に依存し事前の正確な
+// 予測ができないため、発行側では「入力サイズからの推定」ではなく、実際に生成した後の
+// 値(圧縮バイト数・base64文字列そのもの)を、読込側と全く同じ定数・検証関数でその場で
+// 確認してから返す(encodeShareCodeFromPayload参照)。圧縮非対応ブラウザ向けの
+// フォールバック(圧縮なしbase64)経路も例外ではなく同じ関数で検証する。
+// これにより「発行に成功した共有コードは、対応するdecode関数で必ず読める」ことを
+// 個々のケースの妥当性チェックではなく構造的に保証する。
+const SHARE_DECOMPRESSED_MAX_BYTES = 262144; // 展開後バイト列(UTF-8バイト数)。decompression bomb対策の主上限。
+// 圧縮前JSON文字列の上限(UTF-8バイト数)。デコード側が受け入れる展開後データの上限
+// (SHARE_DECOMPRESSED_MAX_BYTES)と必ず同じ値にする(値がズレると「自分で発行した
+// コードを自分でデコードできない」事態が起きうるため、あえて同じ定数を参照させている)。
+const SHARE_JSON_MAX_BYTES = SHARE_DECOMPRESSED_MAX_BYTES;
+// base64url入力(フラグ文字を除いた本体の文字数)。圧縮ありの場合(実測: 現実的な最大
+// デッキ・パッケージで圧縮後base64は約1万文字程度)だけでなく、圧縮非対応ブラウザの
+// フォールバック(圧縮せずbase64化するため、圧縮ありより文字数が大きく膨らむ。実測:
+// 現実的な最大デッキのJSON=約37KBをbase64化すると約5万文字)でも、実測値に対して
+// 約1.8倍の余裕を持たせている(詳細は 展開サイズ攻撃_調査と上限値提案.md 参照)。
+const SHARE_CODE_BODY_MAX_LENGTH = 90000;
+const SHARE_COMPRESSED_MAX_BYTES = 32768; // base64デコード後の圧縮バイト列
+
+// 圧縮前のJSON文字列(のUTF-8バイト数)が上限を超えていないか確認する(段階1)。
+function assertShareJsonWithinLimit(byteLength) {
+  if (byteLength > SHARE_JSON_MAX_BYTES) {
+    throw new Error(`共有データが大きすぎるため、共有リンクを作成できません(上限${SHARE_JSON_MAX_BYTES}バイト)`);
+  }
+}
+// base64入力(共有コード本体)の文字数が上限を超えていないか確認する(段階2)。
+// デコード側ではatob()を呼ぶ前に、エンコード側では生成した本体文字列に対してその場で使う。
+function assertShareCodeBodyWithinLimit(body) {
+  if (String(body || '').length > SHARE_CODE_BODY_MAX_LENGTH) {
+    throw new Error(`共有コードの形式が不正です(長すぎます。上限${SHARE_CODE_BODY_MAX_LENGTH}文字)`);
+  }
+}
+// 圧縮バイト列の長さが上限を超えていないか確認する(段階3)。
+// デコード側ではbase64デコード直後に、エンコード側では圧縮直後に、その場で使う。
+function assertCompressedBytesWithinLimit(byteLength) {
+  if (byteLength > SHARE_COMPRESSED_MAX_BYTES) {
+    throw new Error(`共有コードの形式が不正です(圧縮データが大きすぎます。上限${SHARE_COMPRESSED_MAX_BYTES}バイト)`);
+  }
+}
+
 function b64EncodeUnicode(str) {
   return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16))));
 }
 function b64DecodeUnicode(str) {
+  assertShareCodeBodyWithinLimit(str);
   return decodeURIComponent(Array.prototype.map.call(atob(str), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
 }
 
@@ -384,28 +451,85 @@ function bytesToBase64Url(bytes) {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 function base64UrlToBytes(b64) {
+  // 段階2: base64入力そのものの長さを、atob()を呼ぶ前にチェックする。
+  assertShareCodeBodyWithinLimit(b64);
   let s = String(b64 || '').replace(/-/g, '+').replace(/_/g, '/');
   while (s.length % 4) s += '=';
   const bin = atob(s);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  // 段階3: base64デコード後の圧縮バイト列の長さをチェックする(DecompressionStreamに渡す前)。
+  assertCompressedBytesWithinLimit(bytes.length);
   return bytes;
 }
 async function deflateCompress(bytes) {
   const cs = new CompressionStream('deflate-raw');
   const writer = cs.writable.getWriter();
-  writer.write(bytes);
-  writer.close();
+  // write()/close()の戻り値Promiseを無視すると、ストリームがエラーになった際に
+  // 「unhandled promise rejection」として扱われてしまう(Node.js環境では未捕捉例外として
+  // プロセスごと落ちることがある)。エラーはreader側(Response(...).arrayBuffer())で
+  // 拾うため、ここでは意図的に握りつぶす。
+  writer.write(bytes).catch(() => {});
+  writer.close().catch(() => {});
   const buf = await new Response(cs.readable).arrayBuffer();
   return new Uint8Array(buf);
 }
+// 段階4(decompression bomb対策の中核): DecompressionStreamの出力を
+// Response(...).arrayBuffer()で一括バッファリングせず、readerで少しずつ読みながら
+// 合計サイズを監視する。上限を超えた時点で、残りを読み切る前にreader.cancel()して
+// 例外を投げる(壊れたデータ・圧縮爆弾のどちらであっても、ユーザー向けの
+// 通常のエラーとして上位のtry/catchに委ねられる)。
 async function deflateDecompress(bytes) {
   const ds = new DecompressionStream('deflate-raw');
   const writer = ds.writable.getWriter();
-  writer.write(bytes);
-  writer.close();
-  const buf = await new Response(ds.readable).arrayBuffer();
-  return new Uint8Array(buf);
+  // write()/close()の戻り値Promiseを無視すると、壊れたデータ(不正なdeflate-rawストリーム)を
+  // 渡した際に「unhandled promise rejection」として扱われてしまう(Node.js環境では
+  // 未捕捉例外としてプロセスごと落ちることがある)。実際のエラーは下のreader.read()側で
+  // 例外として拾い、ユーザー向けの安全なエラーに変換するため、ここでは意図的に握りつぶす。
+  writer.write(bytes).catch(() => {});
+  writer.close().catch(() => {});
+  const reader = ds.readable.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > SHARE_DECOMPRESSED_MAX_BYTES) {
+      await reader.cancel('decompressed size exceeds limit').catch(() => {});
+      throw new Error(`共有データの展開後サイズが上限(${SHARE_DECOMPRESSED_MAX_BYTES}バイト)を超えています。壊れているか、不正なデータの可能性があります`);
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) { out.set(c, offset); offset += c.byteLength; }
+  return out;
+}
+
+// 共有コード発行の共通処理(デッキ/パッケージ共通)。生成した圧縮バイト列・base64文字列が、
+// 読込(デコード)側と全く同じ関数・定数で検証されることを保証してから返す。これにより
+// 「発行はできたが対応するdecode関数では読めない」共有コードが生成されることを構造的に
+// 防ぐ(圧縮率の低いデータでも、圧縮非対応ブラウザのフォールバック経路でも同様に保証する)。
+async function encodeShareCodeFromPayload(payload) {
+  const json = JSON.stringify(payload);
+  const jsonBytes = new TextEncoder().encode(json);
+  assertShareJsonWithinLimit(jsonBytes.byteLength); // 段階1(UTF-8バイト数で判定)
+
+  if (typeof CompressionStream === 'undefined') {
+    // 圧縮非対応ブラウザ向けフォールバック(先頭'0'=圧縮なし)。圧縮しない分、
+    // base64化後の本体はJSONそのものよりむしろ大きくなる(base64は3バイトを4文字に
+    // 変換するため約4/3に膨らむ)。生成後の実際の長さを、読込側と同じ
+    // assertShareCodeBodyWithinLimitで検証してから返す。
+    const plain = b64EncodeUnicode(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    assertShareCodeBodyWithinLimit(plain);
+    return '0' + plain;
+  }
+  const compressed = await deflateCompress(jsonBytes);
+  assertCompressedBytesWithinLimit(compressed.byteLength); // 段階3(発行側でも検証)
+  const body = bytesToBase64Url(compressed);
+  assertShareCodeBodyWithinLimit(body); // 段階2(発行側でも検証)
+  return '1' + body;
 }
 
 function deckSharePayload(deck) {
@@ -420,14 +544,7 @@ function deckSharePayload(deck) {
 // 新形式(圧縮)の共有コードを発行する。URLでは #dz=<コード> として使う。
 // 戻り値はPromise(圧縮処理が非同期のため)。
 async function encodeDeckShareCode(deck) {
-  const json = JSON.stringify(deckSharePayload(deck));
-  if (typeof CompressionStream === 'undefined') {
-    // 圧縮非対応ブラウザ向けフォールバック(先頭'0'=圧縮なし)
-    const plain = b64EncodeUnicode(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    return '0' + plain;
-  }
-  const compressed = await deflateCompress(new TextEncoder().encode(json));
-  return '1' + bytesToBase64Url(compressed);
+  return encodeShareCodeFromPayload(deckSharePayload(deck));
 }
 // 新形式(圧縮)の共有コードを読み戻す。戻り値はPromise。
 async function decodeDeckShareCodeV2(code) {
@@ -435,6 +552,7 @@ async function decodeDeckShareCodeV2(code) {
   const flag = raw[0];
   const body = raw.slice(1);
   if (flag === '0') {
+    // b64DecodeUnicode内部でassertShareCodeBodyWithinLimitによる長さチェックを行う。
     let b64 = body.replace(/-/g, '+').replace(/_/g, '/');
     while (b64.length % 4) b64 += '=';
     return JSON.parse(b64DecodeUnicode(b64));
@@ -448,6 +566,7 @@ async function decodeDeckShareCodeV2(code) {
 // 旧形式(単純base64、圧縮なし)の共有コードを読み戻す。以前発行されたリンクとの後方互換用。
 // URLでは #share=<コード> として使う(発行は行わず、読み込みのみ対応する)。
 function decodeDeckShareCode(code) {
+  // b64DecodeUnicode内部でassertShareCodeBodyWithinLimitによる長さチェックを行う。
   let b64 = String(code || '').trim().replace(/-/g, '+').replace(/_/g, '/');
   while (b64.length % 4) b64 += '=';
   return JSON.parse(b64DecodeUnicode(b64));
@@ -476,19 +595,14 @@ function packageSharePayload(pkg) {
   };
 }
 async function encodePackageShareCode(pkg) {
-  const json = JSON.stringify(packageSharePayload(pkg));
-  if (typeof CompressionStream === 'undefined') {
-    const plain = b64EncodeUnicode(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    return '0' + plain;
-  }
-  const compressed = await deflateCompress(new TextEncoder().encode(json));
-  return '1' + bytesToBase64Url(compressed);
+  return encodeShareCodeFromPayload(packageSharePayload(pkg));
 }
 async function decodePackageShareCode(code) {
   const raw = String(code || '');
   const flag = raw[0];
   const body = raw.slice(1);
   if (flag === '0') {
+    // b64DecodeUnicode内部でassertShareCodeBodyWithinLimitによる長さチェックを行う。
     let b64 = body.replace(/-/g, '+').replace(/_/g, '/');
     while (b64.length % 4) b64 += '=';
     return JSON.parse(b64DecodeUnicode(b64));
