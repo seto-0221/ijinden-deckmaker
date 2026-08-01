@@ -217,6 +217,16 @@ function renderDeckSidePanel() {
     html += `<div style="font-size:11px;font-weight:800;color:var(--text-faint);padding:10px 2px 4px;border-top:1px dashed var(--border);margin-top:6px;">サイドデッキ</div>`
       + (sideHtml || `<div class="empty-state" style="padding:10px;font-size:12px;">カード未追加</div>`);
   }
+  // サイド上限0の不具合対策(表示層): カード検索画面の「サイドへ追加」トグルも無効化し、
+  // 選択中がサイドのままだった場合はメインへ戻す(無効なボタンがonのまま残らないようにする)。
+  const addZoneSideBtn = document.querySelector('#addZoneSeg button[data-zone="side"]');
+  if (addZoneSideBtn) {
+    addZoneSideBtn.disabled = reg.sideMax === 0;
+    if (reg.sideMax === 0 && App.addZone === 'side') {
+      App.addZone = 'main';
+      document.querySelectorAll('#addZoneSeg button').forEach(b => b.classList.toggle('on', b.dataset.zone === 'main'));
+    }
+  }
   listEl.innerHTML = html;
   const mainTotal = deckTotalQty(deck.mainCards);
   const sideTotal = deckTotalQty(deck.sideCards);

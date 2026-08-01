@@ -265,6 +265,10 @@ function wireEvents() {
   document.getElementById('deckRegulation').addEventListener('change', (e) => {
     const d = App.workingDeck; if (!d) return;
     d.regulationId = e.target.value; markWorkingDirty();
+    // サイド上限0の不具合対策(イベント層): 切り替え先がサイド非対応なら、既存のsideCardsを
+    // 即座にmainCardsへ合算する(カードは削除しない。合算後の違反は下のrenderDeckEditor内の
+    // renderValidationが通常どおりNGとして表示する)。
+    mergeSideIntoMainIfNoSide(d);
     renderDeckEditor();
   });
   document.getElementById('deckMemo').addEventListener('input', (e) => {
@@ -320,6 +324,12 @@ function wireEvents() {
       if (actionEl.dataset.action === 'movezone') {
         // サイドチェンジ用: メイン⇄サイドを1枚だけ直感的に移動する矢印ボタン
         const otherZone = zone === 'side' ? 'main' : 'side';
+        // サイド上限0の不具合対策(イベント層): 表示制御(ボタン非表示)だけに頼らず、
+        // ここでも独立してサイドへの移動を拒否する(データ層のdeckAddCard内のガードと二重防御)。
+        if (isSideAdditionBlocked(d, otherZone, 1)) {
+          toast('このレギュレーションはサイドデッキに対応していません', 'err');
+          return;
+        }
         deckAddCard(d, actionEl.dataset.cardId, zone, -1);
         deckAddCard(d, actionEl.dataset.cardId, otherZone, 1);
         renderDeckEditor();

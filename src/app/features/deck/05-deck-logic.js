@@ -73,15 +73,46 @@ function normalizeTags(tags) {
   return out;
 }
 
+// 件数がDECK_ENTRIES_MAXを超える場合、そのリスト全体を無効(空配列)として扱う(01-header-constants.js参照)。
+// 一部だけ残す(切り詰め)ことはしない: 数百〜数十万件規模の異常データから「どれを残すか」に合理的な
+// 基準が無く、部分的に残すと見かけ上は正常に読み込めたように見えてしまうため。
+// 合計枚数(qty合計)には上限を設けない(理由は01-header-constants.jsのコメント参照)。
+// sanitizeCardEntries(外部データ)とparseDeckText(テキストインポート)の両方から共通で使う。
+function capCardEntries(list) {
+  if (!Array.isArray(list)) return [];
+  if (list.length > DECK_ENTRIES_MAX) return [];
+  return list;
+}
+
+// 【外部由来データの1エントリあたりqty上限チェック(テキストインポート専用の合流点)】
+// sanitizeCardEntries(共有リンク/QR/バックアップ復元が通る経路)は、合算後の1エントリが
+// DECK_QTY_MAXを超えた場合、クランプせずそのエントリごと除外する(「直す」のではなく
+// 「捨てる」方針。上のコメント・sanitizeCardEntries本体のコメント参照)。
+// テキストインポート(parseDeckText/parseOtherSiteDeckText)はsanitizeCardEntriesを経由せず、
+// 専用のaddEntry()で同一カード名の行を都度合算するため、行ごとの上限チェック(呼び出し側で実施)
+// だけでは、複数行にまたがる合算の結果DECK_QTY_MAXを超えるケース(例: 600枚の行が2行で
+// 合計1200枚)を防げない。この関数はその合算後チェックをsanitizeCardEntriesと全く同じ方針
+// (クランプせず、そのエントリだけを除外)でテキストインポート側にも適用するための共通ヘルパー。
+function dropEntriesOverQtyMax(list) {
+  if (!Array.isArray(list)) return [];
+  return list.filter(e => Number.isFinite(e.qty) && e.qty <= DECK_QTY_MAX);
+}
+
 /* ---- 外部由来データの共通サニタイズ層 ----
    共有リンク(#dz=/#share=)・QRコードインポート・バックアップ復元など、通常のUI入力(数量ボタン・
    テキストインポート)を経由しない外部データは、必ずここを通してからApp.state/workingDeckへ入れること。
    方針:「直す」のではなく「捨てる」。範囲・型から外れた要素は個別に除外し、クランプ(丸め込み)はしない。
    同一cardIdは合算するが、合算前に無効な値(負数・NaN・Infinity・範囲外)を弾いているため、
    「正負を相殺させて実際より少なく見せる」ことはできない(合算後に上限を超えた場合もクランプせず除外する)。
+   【DoS対策】マージ前の生配列の要素数がRAW_ENTRY_LIST_MAXを超える場合は、1件ずつ検証するループに
+   入る前に空配列を返す(数十万件規模のペイロードでMap構築自体に時間がかかることを防ぐ、安価な最初のゲート)。
+   マージ後も、異なるcardIdの件数(DECK_ENTRIES_MAX)がここまでの検証をすり抜けて残っている場合に
+   備え、capCardEntriesで最終チェックする(合計枚数には上限を設けない。理由はcapCardEntries手前の
+   コメントおよび01-header-constants.jsのコメントを参照)。
 */
 function sanitizeCardEntries(rawList) {
   if (!Array.isArray(rawList)) return [];
+  if (rawList.length > RAW_ENTRY_LIST_MAX) return [];
   const merged = new Map(); // cardId -> qty(1〜DECK_QTY_MAXの正の整数のみが入る)
   for (const raw of rawList) {
     // [cardId, qty] のタプル形式(共有リンク/QR由来)と {cardId, qty} のオブジェクト形式
@@ -108,7 +139,7 @@ function sanitizeCardEntries(rawList) {
     if (qty > DECK_QTY_MAX) continue; // 合算後に上限を超えた場合もクランプせず除外する
     out.push({ cardId, qty });
   }
-  return out;
+  return capCardEntries(out);
 }
 
 // カードID配列(leaderCards等、枚数を持たない単純なID配列)のサニタイズ。
@@ -149,7 +180,36 @@ function sanitizeDeckPayload(raw) {
   const regRaw = src.regulationId !== undefined ? src.regulationId : src.r;
   const regulationId = (typeof regRaw === 'string' && regRaw) ? regRaw : 'standard';
 
-  return { name, regulationId, mainCards, sideCards, leaderCards, trumpCard, trumpQty, tags };
+  // サイド上限0の不具合対策: 外部由来データ(共有リンク/QR/バックアップ復元)にsideCardsが
+  // 含まれていても、regulationIdがサイド非対応(sideMax:0)を指すなら、ここでmainCardsへ
+  // 合算してsideCardsを空にする(カードを削除しない。詳細はmergeSideIntoMainIfNoSide参照)。
+  const merged = mergeSideIntoMainIfNoSide({ regulationId, mainCards, sideCards });
+
+  return { name, regulationId, mainCards: merged.mainCards, sideCards: merged.sideCards, leaderCards, trumpCard, trumpQty, tags };
+}
+
+// deck.sideCards内のカードをdeck.mainCardsへ合算し、sideCardsを空にする(サイドカードを黙って
+// 削除しない。カードは必ずmainCards側に残る)。reg.sideMax===0(サイド非対応レギュレーション)の
+// ときだけ処理し、それ以外はdeckをそのまま返す。呼び出し元(sanitizeDeckPayload/saveWorkingDeck/
+// finishDeckImport/レギュレーション変更イベント)を1箇所にまとめるための共通関数。
+// 合算によって同名4枚超過等のレギュレーション違反が起きても、この関数では判定しない
+// (呼び出し側のvalidateDeckが通常どおりNGを表示すればよいため)。
+// 【重要】合算値をDECK_QTY_MAX(999)でクランプしない。合算後の値がDECK_QTY_MAXを超える可能性は
+// あるが、この関数ではクランプしない(クランプすると、その分のカードが黙って消えてしまい、
+// サイドカードを黙って削除しないという方針に反するため)。合算結果が同名上限等のレギュレーション
+// 違反になる場合は、ここで隠さず、通常どおりvalidateDeckでNGを表示する。
+// 引数はmainCards/sideCards/regulationIdを持つオブジェクトなら何でもよい(deck本体でも可)。
+function mergeSideIntoMainIfNoSide(deck) {
+  const reg = getRegulation(deck.regulationId);
+  if (reg.sideMax !== 0) return deck;
+  const sideCards = deck.sideCards || [];
+  if (!sideCards.length) return deck;
+  const map = new Map();
+  for (const e of (deck.mainCards || [])) map.set(e.cardId, (map.get(e.cardId) || 0) + e.qty);
+  for (const e of sideCards) map.set(e.cardId, (map.get(e.cardId) || 0) + e.qty);
+  deck.mainCards = Array.from(map, ([cardId, qty]) => ({ cardId, qty }));
+  deck.sideCards = [];
+  return deck;
 }
 
 // 外部由来のパッケージ様オブジェクトを安全な内部形式へ正規化する(共有リンク圧縮キー n/c/tags、
@@ -280,15 +340,43 @@ function computeDeckColors(deck, getCardFn, opts = {}) {
 
 function deckTotalQty(list) { return list.reduce((s, e) => s + e.qty, 0); }
 
+// zone/deltaで指定された移動・増減が、サイド上限0のレギュレーションでサイドを増やそうとしていないかを判定する。
+// イベント層(15-events.js)・データ層(deckAddCard自体)の両方から同じ判定を使うための共通関数
+// (表示制御だけに頼らず、どちらの層でも独立して拒否できるようにする)。
+function isSideAdditionBlocked(deck, zone, delta) {
+  if (zone !== 'side' || delta <= 0) return false;
+  return getRegulation(deck.regulationId).sideMax === 0;
+}
+
 function deckAddCard(deck, cardId, zone, delta) {
+  // サイド上限0の不具合対策(データ層): 表示上ボタンが非表示・無効化されていても、
+  // 何らかの経路で呼ばれた場合に備え、ここでも独立してサイドへの追加を拒否する。
+  if (isSideAdditionBlocked(deck, zone, delta)) return;
   const list = zone === 'side' ? deck.sideCards : deck.mainCards;
   let entry = list.find(e => e.cardId === cardId);
   if (!entry) {
     if (delta <= 0) return;
+    // 内部安全上限(件数): 新規カード種類の追加は、そのゾーンが既にDECK_ENTRIES_MAX件に
+    // 達している場合は行わない(通常操作でも外部データと同じ上限を働かせるため)。
+    if (list.length >= DECK_ENTRIES_MAX) return;
     entry = { cardId, qty: 0 };
     list.push(entry);
   }
-  entry.qty += delta;
+  // 内部安全上限(1エントリあたりの枚数): 通常操作(qtyボタン・数量欄への直接入力)で、
+  // DECK_QTY_MAX以下の状態から新たにDECK_QTY_MAXを超えて増やすことは禁止する。
+  // 【重要】mergeSideIntoMainIfNoSide(サイド上限0のレギュレーションへの変更時の合算)によって、
+  // 既にDECK_QTY_MAXを超えている値(正規化によって生じた正当な値)については、ここで999へ
+  // 巻き戻す(クランプする)と、その分のカードが黙って消えてしまう。そのため、
+  //   ・減少方向(delta<=0)は常にそのまま適用する(上限を割り込むだけなのでクランプ不要)。
+  //   ・既にDECK_QTY_MAXを超えている状態からの増加(delta>0)は、現在値を上限としてそれ以上は
+  //     増やさない(=それ以上壊れないが、それ以上も増えない。仕様として明確でありカードは消えない)。
+  //   ・DECK_QTY_MAX以下の状態からの増加(delta>0)は、従来どおりDECK_QTY_MAXで頭打ちにする。
+  if (delta > 0) {
+    const cap = Math.max(DECK_QTY_MAX, entry.qty);
+    entry.qty = Math.min(entry.qty + delta, cap);
+  } else {
+    entry.qty += delta;
+  }
   if (entry.qty <= 0) {
     const idx = list.indexOf(entry);
     list.splice(idx, 1);
@@ -437,17 +525,18 @@ function validateDeck(deck) {
   // ---- 全フォーマット共通: 同名枚数制限・禁止カード・収録元制限 ----
   // 収録弾(source)や色違い等で収録カードIDが異なっていても、同じ名前のカードは合算してカウントする。
   // 例外: ヒエロスガモス(RY)等の色違い5種は、色表記に関わらず全て「ヒエロスガモス」として同名扱いにする。
-  const byName = new Map(); // normalizedName -> { qty, displayName, unlimited, types:Set, sources:Set }
+  const byName = new Map(); // normalizedName -> { qty, displayName, unlimited, types:Set, sources:Set, rarities:Set }
   for (const e of deck.mainCards.concat(deck.sideCards)) {
     const card = getCard(e.cardId);
     if (!card) { messages.push({ level: 'warn', text: `未登録のカード(ID:${e.cardId})が含まれています` }); continue; }
     const key = cardLimitName(card);
     let g = byName.get(key);
-    if (!g) { g = { qty: 0, displayName: key, unlimited: false, types: new Set(), sources: new Set() }; byName.set(key, g); }
+    if (!g) { g = { qty: 0, displayName: key, unlimited: false, types: new Set(), sources: new Set(), rarities: new Set() }; byName.set(key, g); }
     g.qty += e.qty;
     if (card.unlimited) g.unlimited = true;
     g.types.add(card.type);
     if (card.source) g.sources.add(card.source);
+    if (card.rarity) g.rarities.add(card.rarity);
   }
   for (const [key, g] of byName) {
     if (g.unlimited) continue;
@@ -475,6 +564,37 @@ function validateDeck(deck) {
     }
     if (offenders.size) {
       messages.push({ level: 'err', text: `スターターデッキ収録カードのみ使用できます。ブースター収録カードが含まれています: ${Array.from(offenders).join('、')}` });
+    }
+  }
+  // ノーマルスクール等: 許可レアリティの一覧(allowedRarities)に無いレアリティが1件でも含まれる名前をNGにする。
+  if (reg.allowedRarities && reg.allowedRarities.length) {
+    const offenders = new Set();
+    for (const [key, g] of byName) {
+      if (Array.from(g.rarities).some(r => !reg.allowedRarities.includes(r))) offenders.add(g.displayName);
+    }
+    if (offenders.size) {
+      messages.push({ level: 'err', text: `使用可能なレアリティは${reg.allowedRarities.join('/')}のみです。対象外のカードが含まれています: ${Array.from(offenders).join('、')}` });
+    }
+  }
+  // bannedCardNames(カード名管理)とは別に、cardId配列で禁止カードを管理する場合のチェック。
+  // 色違い等の表記ゆれに影響されず、特定のcardIdをピンポイントで禁止できる。
+  if (reg.bannedCardIds && reg.bannedCardIds.length) {
+    const bannedFound = new Set();
+    for (const e of deck.mainCards.concat(deck.sideCards)) {
+      if (reg.bannedCardIds.includes(e.cardId)) {
+        const c = getCard(e.cardId);
+        bannedFound.add(c ? c.name : e.cardId);
+      }
+    }
+    if (deck.trumpCard && reg.bannedCardIds.includes(deck.trumpCard)) bannedFound.add(trumpCard ? trumpCard.name : deck.trumpCard);
+    for (const lid of (deck.leaderCards || [])) {
+      if (reg.bannedCardIds.includes(lid)) {
+        const c = getCard(lid);
+        bannedFound.add(c ? c.name : lid);
+      }
+    }
+    for (const name of bannedFound) {
+      messages.push({ level: 'err', text: `「${name}」はこのレギュレーションで使用禁止です` });
     }
   }
 

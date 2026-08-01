@@ -103,6 +103,10 @@ function saveWorkingDeck(showToast) {
   // 保存時にメタデータの補完とタグの正規化(前後空白除去/空タグ除外/完全一致の重複除去/上限適用)を行う。
   // 旧形式デッキが新形式で保存されるのはこのタイミングのみ(読み込み時にはlocalStorageを書き換えない)。
   ensureDeckMeta(snapshot);
+  // サイド上限0の不具合対策(正規化層・最終セーフティネット): レギュレーション変更時のハンドラや
+  // 各インポート経路で既に処理されているはずだが、保存の瞬間にも独立してもう一度チェックする。
+  // 既存の古いデータ(後方互換)がこの状態で残っていた場合も、保存操作をきっかけに自己修復される。
+  mergeSideIntoMainIfNoSide(snapshot);
   snapshot.tags = normalizeTags(snapshot.tags);
   snapshot.updatedAt = Date.now();
   const idx = App.state.decks.findIndex(x => x.id === snapshot.id);

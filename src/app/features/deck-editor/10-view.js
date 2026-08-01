@@ -81,6 +81,10 @@ function renderDeckEditor() {
 
   renderDeckCardList('deckMainList', deck.mainCards, deck, 'main');
   document.getElementById('deckSideZoneList').parentElement.style.display = ''; // section-title
+  // サイド上限0の不具合対策(表示層): サイド見出しの「＋追加」ボタンも無効化する
+  // (movezoneボタンの非表示と合わせて、サイドへの追加操作そのものにアクセスできないようにする)。
+  const sideAddBtnEl = document.getElementById('sideAddBtn');
+  if (sideAddBtnEl) sideAddBtnEl.disabled = reg.sideMax === 0;
   if (reg.sideMax === 0) {
     document.getElementById('deckSideZoneList').innerHTML = `<div class="empty-state" style="padding:16px;">このレギュレーションはサイドデッキ非対応です</div>`;
   } else {
@@ -210,9 +214,12 @@ function renderTagChips(deck) {
   }
 }
 
-function deckCardGridTileHtml(c, qty, zone) {
+function deckCardGridTileHtml(c, qty, zone, hideMoveBtn) {
   const dots = c.colors.map(col => `<span class="color-dot c-${col}"></span>`).join('');
   const badge = qty > 0 ? `<div class="qty-badge"><span class="qty-badge-part">${qty}</span></div>` : '';
+  // サイド上限0の不具合対策(表示層): サイド非対応レギュレーションでは、メイン行の「⬇サイドへ移動」
+  // ボタン自体を描画しない(hideMoveBtnはrenderDeckCardList側で判定して渡す)。
+  const moveBtn = hideMoveBtn ? '' : `<button class="qty-btn move-btn" data-action="movezone" data-card-id="${c.id}" data-zone="${zone}" title="${zone === 'side' ? 'メインへ1枚移動' : 'サイドへ1枚移動'}">${zone === 'side' ? '⬆' : '⬇'}</button>`;
   return `<div class="card-tile" data-card-id="${c.id}">
       ${badge}
       <div class="thumb" data-action="detail" data-card-id="${c.id}">${cardThumbHtml(c)}</div>
@@ -224,7 +231,7 @@ function deckCardGridTileHtml(c, qty, zone) {
         <button class="qty-btn" data-action="deckdec" data-card-id="${c.id}" data-zone="${zone}">−</button>
         <input type="number" class="qty-num" inputmode="numeric" min="0" data-action="deckset" data-card-id="${c.id}" data-zone="${zone}" value="${qty}">
         <button class="qty-btn" data-action="deckinc" data-card-id="${c.id}" data-zone="${zone}">＋</button>
-        <button class="qty-btn move-btn" data-action="movezone" data-card-id="${c.id}" data-zone="${zone}" title="${zone === 'side' ? 'メインへ1枚移動' : 'サイドへ1枚移動'}">${zone === 'side' ? '⬆' : '⬇'}</button>
+        ${moveBtn}
         <button class="qty-btn del-btn" data-action="deckdel" data-card-id="${c.id}" data-zone="${zone}" title="デッキから削除">🗑</button>
       </div>
     </div>`;
@@ -282,6 +289,10 @@ function renderDeckCardList(containerId, list, deck, zone) {
   // 第2段階UI改善: リスト表示(list)はPC版(1200px以上)限定で2カラムのCSS Gridになる
   // deck-list-2colクラスを付与する(1199px以下は従来どおり1カラム表示のまま)。
   el.className = 'deck-list-group panel ' + (gridMode ? 'card-grid' : 'deck-list-2col');
+  // サイド上限0の不具合対策(表示層): サイド非対応レギュレーションでは、メイン行の
+  // 「⬇サイドへ移動」ボタンを描画しない(サイド側自体はrenderDeckEditor側で非表示メッセージに
+  // 置き換わるため、ここではmainゾーンだけを気にすればよい)。
+  const hideMoveBtn = zone === 'main' && getRegulation(deck.regulationId).sideMax === 0;
   if (!list.length) {
     el.innerHTML = `<button type="button" class="empty-state" data-action="empty-open-search" data-zone="${zone}" style="padding:20px;width:100%;border:none;background:transparent;cursor:pointer;font:inherit;color:inherit;"><div class="big">➕</div>タップしてカードを検索・追加してください</button>`;
     return;
@@ -307,8 +318,9 @@ function renderDeckCardList(containerId, list, deck, zone) {
         continue;
       }
       if (gridMode) {
-        html += deckCardGridTileHtml(c, e.qty, zone);
+        html += deckCardGridTileHtml(c, e.qty, zone, hideMoveBtn);
       } else {
+        const moveBtn = hideMoveBtn ? '' : `<button class="qty-btn move-btn" data-action="movezone" data-card-id="${e.cardId}" data-zone="${zone}" title="${zone === 'side' ? 'メインへ1枚移動' : 'サイドへ1枚移動'}">${zone === 'side' ? '⬆' : '⬇'}</button>`;
         html += `<div class="deck-card-row">
             <div class="thumb-xs" data-action="detail" data-card-id="${e.cardId}">${cardThumbHtml(c)}</div>
             <span class="name">${escapeHtml(c.name)}</span>
@@ -317,7 +329,7 @@ function renderDeckCardList(containerId, list, deck, zone) {
               <button class="qty-btn" data-action="deckdec" data-card-id="${e.cardId}" data-zone="${zone}">−</button>
               <input type="number" class="qty-num" inputmode="numeric" min="0" data-action="deckset" data-card-id="${e.cardId}" data-zone="${zone}" value="${e.qty}">
               <button class="qty-btn" data-action="deckinc" data-card-id="${e.cardId}" data-zone="${zone}">＋</button>
-              <button class="qty-btn move-btn" data-action="movezone" data-card-id="${e.cardId}" data-zone="${zone}" title="${zone === 'side' ? 'メインへ1枚移動' : 'サイドへ1枚移動'}">${zone === 'side' ? '⬆' : '⬇'}</button>
+              ${moveBtn}
               <button class="qty-btn del-btn" data-action="deckdel" data-card-id="${e.cardId}" data-zone="${zone}" title="デッキから削除">🗑</button>
             </div>
           </div>`;

@@ -750,13 +750,31 @@ function parseOtherSiteDeckText(lines) {
     if (!m) m = line.match(/^(.+?)[ 　]{2,}(\d+)\s*$/);
     if (!m) { warnings.push(`解析できませんでした: ${rawLine}`); continue; }
     const cardName = m[1].trim();
-    const qty = parseInt(m[2], 10) || 0;
-    if (qty <= 0 || !cardName) continue;
+    const qtyRaw = parseInt(m[2], 10) || 0;
+    // 非常に大きな桁数の数字列は、parseIntがInfinity等の非有限値を返す実装があるため
+    // (ECMAScript仕様はparseIntの戻り値がInfinityになることを保証してはいないが、有限の
+    // 範囲を超えた場合に非有限値を返す実装は許容されている)、Number.isFiniteでの確認が必須
+    // (非有限値は`qty <= 0`をすり抜けてしまう)。DECK_QTY_MAX超も、この行単独では
+    // クランプせず除外する(共有リンク/QR/バックアップ復元と同じ「捨てる」方針)。
+    if (!Number.isFinite(qtyRaw) || qtyRaw <= 0 || !cardName) continue;
+    if (qtyRaw > DECK_QTY_MAX) { warnings.push(`枚数が上限(${DECK_QTY_MAX}枚)を超えているため除外しました: ${cardName}`); continue; }
+    const qty = qtyRaw;
     const card = findCardByFlexibleName(cardName);
     if (!card) { warnings.push(`見つからないカード: ${cardName}`); continue; }
     addEntry(section === 'side' ? sideCards : mainCards, card.id, qty);
   }
-  return { mainCards, sideCards, warnings };
+  // テキストインポート経路にも共有リンク/バックアップ復元と同じ内部安全上限(エントリ件数・
+  // 1エントリあたりのqty上限)を適用する。行ごとの上限チェックだけでは、同一カードが複数行に
+  // またがって合算された結果DECK_QTY_MAXを超えるケースを防げないため、合算後にも
+  // dropEntriesOverQtyMax(05-deck-logic.js)でsanitizeCardEntriesと同じ方針の除外を行う。
+  // 適用順はcapCardEntries(エントリ件数チェック)を先に行う: 件数上限はDoS対策(異常な件数の
+  // データはqtyの中身を見るまでもなく無効とみなせる)、qty上限はデータ妥当性の検証という
+  // 役割が異なるため、「まず件数で足切りしてから中身を検証する」方が責務として素直。
+  return {
+    mainCards: dropEntriesOverQtyMax(capCardEntries(mainCards)),
+    sideCards: dropEntriesOverQtyMax(capCardEntries(sideCards)),
+    warnings,
+  };
 }
 
 // deckToText()の出力(またはそれに近い形式)を解析してデッキオブジェクトへ変換する
@@ -867,19 +885,36 @@ function parseDeckText(text) {
 
     const m = line.match(/^(\d+)\s*[xX]?[\t ]+(.+?)(?:[\t ]*\[([^\]]+)\])?(?:[\t ]*No\.(\d+)-(\S+))?$/);
     if (!m) { warnings.push(`解析できませんでした: ${rawLine}`); continue; }
-    const qty = parseInt(m[1], 10) || 0;
+    const qtyRaw = parseInt(m[1], 10) || 0;
     const cardName = m[2].trim();
     const typeHint = m[3] ? m[3].trim() : null;
     const setHint = m[4] ? parseInt(m[4], 10) : null;
     const noHint = m[5] ? m[5].trim() : null;
-    if (qty <= 0 || !cardName) continue;
+    // 非常に大きな桁数の数字列は、parseIntがInfinity等の非有限値を返す実装があるため
+    // (ECMAScript仕様はparseIntの戻り値がInfinityになることを保証してはいないが、有限の
+    // 範囲を超えた場合に非有限値を返す実装は許容されている)、Number.isFiniteでの確認が必須
+    // (非有限値は`qty <= 0`をすり抜けてしまう)。DECK_QTY_MAX超も、この行単独では
+    // クランプせず除外する(共有リンク/QR/バックアップ復元と同じ「捨てる」方針)。
+    if (!Number.isFinite(qtyRaw) || qtyRaw <= 0 || !cardName) continue;
+    if (qtyRaw > DECK_QTY_MAX) { warnings.push(`枚数が上限(${DECK_QTY_MAX}枚)を超えているため除外しました: ${cardName}`); continue; }
+    const qty = qtyRaw;
     const card = findCardByName(cardName, typeHint, setHint, noHint);
     if (!card) { warnings.push(`見つからないカード: ${cardName}`); continue; }
     addEntry(section === 'side' ? sideCards : mainCards, card.id, qty);
   }
 
+  // テキストインポート経路にも共有リンク/バックアップ復元と同じ内部安全上限(エントリ件数・
+  // 1エントリあたりのqty上限)を適用する。行ごとの上限チェックだけでは、同一カードが複数行に
+  // またがって合算された結果DECK_QTY_MAXを超えるケースを防げないため、合算後にも
+  // dropEntriesOverQtyMax(05-deck-logic.js)でsanitizeCardEntriesと同じ方針の除外を行う。
+  // 適用順はcapCardEntries(エントリ件数チェック)を先に行う: 件数上限はDoS対策(異常な件数の
+  // データはqtyの中身を見るまでもなく無効とみなせる)、qty上限はデータ妥当性の検証という
+  // 役割が異なるため、「まず件数で足切りしてから中身を検証する」方が責務として素直。
   const deck = {
-    id: uid('deck'), name, regulationId, mainCards, sideCards, tags, memo,
+    id: uid('deck'), name, regulationId,
+    mainCards: dropEntriesOverQtyMax(capCardEntries(mainCards)),
+    sideCards: dropEntriesOverQtyMax(capCardEntries(sideCards)),
+    tags, memo,
     thumbnailCardId: null, simStarters: [], leaderCards, trumpCard,
     trumpQty: trumpCard ? trumpQty : 0,
     createdAt: Date.now(), updatedAt: Date.now(),
@@ -961,6 +996,10 @@ function openDeckQrImportModal() {
 
 function finishDeckImport(deck, warnings) {
   confirmDiscardIfDirty(() => {
+    // サイド上限0の不具合対策(正規化層): テキスト形式のインポート(sanitizeDeckPayloadを通らない
+    // 経路)にも、共有リンク/バックアップ復元と同じ「サイド非対応レギュレーションならsideCardsを
+    // mainCardsへ合算する」処理を適用する。
+    mergeSideIntoMainIfNoSide(deck);
     App.workingDeck = deck;
     App.state.activeDeckId = null;
     App.workingDeckDirty = true;
