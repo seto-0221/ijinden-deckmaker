@@ -33,6 +33,21 @@
 .view { display: none; flex: 1; min-height: 0; }
 .view.active { display: flex; }
 
+/* ---------- PC版(881px以上)のみ: 主要コンテンツに最大幅を設定し中央寄せにする ----------
+   ヘッダー(.topbar)は対象外(引き続き画面幅いっぱいのまま)。880px以下の既存レイアウトへは
+   一切影響させないため、min-width:881pxのメディアクエリ内にのみ追加する(60-responsive.cssの
+   max-width:880px側は変更しない)。1440pxという値は、カード検索画面の3ペイン(フィルタ250px+
+   カード一覧可変+編集中デッキ320px、gap16px×2、外側padding16px×2)を組んだ状態で
+   カードグリッドが概ね5列前後表示できる幅を目安にしている。 */
+@media (min-width: 881px) {
+  .view {
+    max-width: 1440px;
+    width: 100%;
+    margin: 0 auto;
+    background: var(--bg);
+  }
+}
+
 .panel { background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); }
 .scroll-y { overflow-y: auto; }
 .scroll-x { overflow-x: auto; }

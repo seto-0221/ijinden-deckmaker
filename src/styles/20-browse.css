@@ -1,5 +1,12 @@
 /* ---------- Browse view ---------- */
 #view-browse { gap: 10px; padding: 10px; }
+
+/* ---------- PC版(881px以上)のみ: 3ペイン(フィルタ/カード一覧/編集中デッキ)の間隔を
+   4px単位のスケールに揃え、ゆとりを持たせる。880px以下は#view-browseがflex-direction:columnの
+   縦積みレイアウトに変わる(60-responsive.css側、変更していない)ため、そちらには影響しない。 */
+@media (min-width: 881px) {
+  #view-browse { gap: 16px; padding: 16px; }
+}
 .filter-col {
   width: 250px; flex-shrink: 0; padding: 12px; display: flex; flex-direction: column; gap: 12px;
   overflow-y: auto;

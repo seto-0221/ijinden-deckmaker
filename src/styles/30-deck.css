@@ -2,6 +2,13 @@
 .deck-side {
   width: 300px; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden;
 }
+
+/* ---------- PC版(881px以上)のみ: カード検索画面の右側「編集中のデッキ」パネル幅を320pxへ。
+   880px以下では#deckSidePanelはdisplay:noneがデフォルトで、.mobile-open時はwidth:autoに
+   上書きされる(60-responsive.css側、変更していない)ため、この幅指定は影響しない。 */
+@media (min-width: 881px) {
+  .deck-side { width: 320px; }
+}
 .deck-side-head { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
 .deck-side-body { flex: 1; overflow-y: auto; padding: 8px 10px; }
 .deck-side-foot { padding: 10px 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
