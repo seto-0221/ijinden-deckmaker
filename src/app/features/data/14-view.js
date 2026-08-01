@@ -263,12 +263,23 @@ async function preloadDeckThumbImages(deck) {
   return imgMap;
 }
 
-const GRID_COLS = 6;
-const GRID_CELL_W = 170;
+// 第2段階UI改善: 「カードを主役に」の方針で、メインのカード一覧タイルを一回り大きくし(6列→5列)、
+// 名前表示は2行→1行(省略記号)に圧縮して文字情報の比率を下げた。
+const GRID_COLS = 5;
+const GRID_CELL_W = 200;
 const GRID_GAP = 16;
 const GRID_IMG_H = Math.round(GRID_CELL_W * 1.4);
-const GRID_NAME_H = 38;
+const GRID_NAME_H = 22;
 const GRID_CELL_H = GRID_IMG_H + GRID_NAME_H;
+
+// 統領・切り札は「デッキの顔」として、メインのカード一覧タイルよりさらに大きい専用サイズで描画する。
+// 通常は統領(最大2枚)+切り札(1種)=最大3件のため、3列で1行に収まることが多い。
+const LT_COLS = 3;
+const LT_CELL_W = 260;
+const LT_GAP = 16;
+const LT_IMG_H = Math.round(LT_CELL_W * 1.4);
+const LT_NAME_H = 22;
+const LT_CELL_H = LT_IMG_H + LT_NAME_H;
 
 // 指定幅に収まる様に日本語テキストを最大maxLines行まで折り返して中央揃えで描画する(超過分は末尾を…に)
 function wrapCenteredText(ctx, text, cx, topY, maxWidth, lineHeight, maxLines) {
@@ -416,16 +427,19 @@ function truncateTextToWidth(ctx, text, maxW) {
 }
 
 // メイン/サイド/統領/切り札で共通利用する、1枚分のカードタイル(画像+枚数バッジ+色ドット+カード名)を描画する。
-function drawCardImageTile(ctx, cellX, cellY, entry, imgMap, useImages) {
+// cellW/imgH/nameHを省略した場合はメインのカード一覧用サイズ(GRID_CELL_W等)を使う。
+// 統領・切り札(LT_CELL_W等)など、より大きい「主役サイズ」で描く場合は明示的に渡す。
+// 第2段階UI改善: 「文字情報は最低限で」の方針により、カード名は2行→1行(収まらない分は…)に圧縮した。
+function drawCardImageTile(ctx, cellX, cellY, entry, imgMap, useImages, cellW = GRID_CELL_W, imgH = GRID_IMG_H, nameH = GRID_NAME_H) {
   const { c, qty, cardId } = entry;
   const img = useImages && c ? imgMap.get(cardId) : null;
   if (img) {
-    ctx.drawImage(img, cellX, cellY, GRID_CELL_W, GRID_IMG_H);
+    ctx.drawImage(img, cellX, cellY, cellW, imgH);
   } else {
     ctx.fillStyle = '#eeeeee';
-    ctx.fillRect(cellX, cellY, GRID_CELL_W, GRID_IMG_H);
+    ctx.fillRect(cellX, cellY, cellW, imgH);
     ctx.strokeStyle = '#dddddd';
-    ctx.strokeRect(cellX, cellY, GRID_CELL_W, GRID_IMG_H);
+    ctx.strokeRect(cellX, cellY, cellW, imgH);
   }
   // 枚数バッジ(左上)。カード画像の上に黒文字を直接置くと絵柄次第で見にくくなるため、
   // 数字の後ろに最小限の白背景を敷いてから濃色の文字を描く
@@ -442,7 +456,7 @@ function drawCardImageTile(ctx, cellX, cellY, entry, imgMap, useImages) {
   ctx.fillText(badgeText, cellX + 12, cellY + 24);
   // 色ドット(右上)
   if (c && c.colors && c.colors.length) {
-    let dotX = cellX + GRID_CELL_W - 12;
+    let dotX = cellX + cellW - 12;
     for (const col2 of c.colors) {
       ctx.beginPath();
       ctx.fillStyle = getColorHex(col2);
@@ -451,10 +465,10 @@ function drawCardImageTile(ctx, cellX, cellY, entry, imgMap, useImages) {
       dotX -= 18;
     }
   }
-  // カード名(画像下、中央揃え・最大2行)
+  // カード名(画像下、中央揃え・最大1行。文字情報より画像そのものを主役にするため)
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#222222';
-  wrapCenteredText(ctx, c ? c.name : `(未登録: ${cardId})`, cellX + GRID_CELL_W / 2, cellY + GRID_IMG_H + 17, GRID_CELL_W - 6, 17, 2);
+  wrapCenteredText(ctx, c ? c.name : `(未登録: ${cardId})`, cellX + cellW / 2, cellY + imgH + nameH - 5, cellW - 6, 17, 1);
 }
 
 // 統領・切り札を「メインデッキの上の専用枠」に左から統領→切り札の順で並べるためのエントリ一覧を作る。
@@ -474,10 +488,12 @@ function leaderTrumpEntries(deck) {
 const LT_ROLE_LABEL_H = 18;
 // 統領・切り札の枠全体(タイトル行+カード行+余白)が消費する高さ。canvasサイズの事前計算と実際の描画の
 // 両方から呼び、必ず同じ値になるようにする(ずれるとcanvasの高さが実際の描画内容と合わなくなるため)。
+// 第2段階UI改善: 統領・切り札は「主役サイズ」(LT_COLS/LT_CELL_H)で描くため、メインの
+// GRID_COLS/GRID_CELL_Hとは別に計算する。
 function leaderTrumpSectionHeight(entries) {
   if (!entries.length) return 34 + 24 + 16;
-  const rows = Math.ceil(entries.length / GRID_COLS);
-  return 34 + rows * (LT_ROLE_LABEL_H + GRID_CELL_H + GRID_GAP) + 16;
+  const rows = Math.ceil(entries.length / LT_COLS);
+  return 34 + rows * (LT_ROLE_LABEL_H + LT_CELL_H + LT_GAP) + 16;
 }
 
 // 統計の数値1つ分(枚数など)を四角いボックスとして描画する
@@ -668,19 +684,20 @@ function buildDeckImageCanvas(deck, imgMap, useImages, qrCanvas, logoImg) {
       ctx.fillText('統領・切り札が選択されていません', padding, y + 16);
       y += 24 + 16;
     } else {
+      // 第2段階UI改善: 統領・切り札はメインのカード一覧より大きい「主役サイズ」(LT_*定数)で描く。
       let col = 0;
       for (const entry of ltEntries) {
-        const cellX = padding + col * (GRID_CELL_W + GRID_GAP);
+        const cellX = padding + col * (LT_CELL_W + LT_GAP);
         const roleY = y;
         const cellY = y + LT_ROLE_LABEL_H;
-        ctx.font = 'bold 12px sans-serif';
+        ctx.font = 'bold 13px sans-serif';
         ctx.fillStyle = '#666666';
         ctx.fillText(entry.role, cellX, roleY + 13);
-        drawCardImageTile(ctx, cellX, cellY, entry, imgMap, useImages);
+        drawCardImageTile(ctx, cellX, cellY, entry, imgMap, useImages, LT_CELL_W, LT_IMG_H, LT_NAME_H);
         col++;
-        if (col >= GRID_COLS) { col = 0; y += LT_ROLE_LABEL_H + GRID_CELL_H + GRID_GAP; }
+        if (col >= LT_COLS) { col = 0; y += LT_ROLE_LABEL_H + LT_CELL_H + LT_GAP; }
       }
-      if (col > 0) y += LT_ROLE_LABEL_H + GRID_CELL_H + GRID_GAP;
+      if (col > 0) y += LT_ROLE_LABEL_H + LT_CELL_H + LT_GAP;
       y += 16;
     }
   }

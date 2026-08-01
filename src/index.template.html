@@ -176,19 +176,27 @@
         </div>
       </div>
 
-      <!-- 統領・切り札は、リスト/グリッド切替やソートのボタン列のすぐ下に表示する -->
+      <!-- 統領・切り札は、リスト/グリッド切替やソートのボタン列のすぐ下に表示する。
+           第2段階UI改善: PC版(1200px以上)では leader-trump-row が横並び2カラムになり、
+           メインデッキに到達するまでの縦スクロール量を減らす(1199px以下は従来どおり縦積み)。
+           #deckLeaderList / #deckTrumpList のidはJS側から変更していないため後方互換を維持している。 -->
       <div id="leaderZoneWrap" class="hidden">
-        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
-          <span>統領</span>
-          <button class="btn small primary" id="addLeaderBtn">＋ 統領を選択</button>
+        <div class="leader-trump-row">
+          <div class="leader-trump-col">
+            <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>統領</span>
+              <button class="btn small primary" id="addLeaderBtn">＋ 統領を選択</button>
+            </div>
+            <div class="deck-list-group panel" id="deckLeaderList"></div>
+          </div>
+          <div class="leader-trump-col">
+            <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>切り札</span>
+              <button class="btn small primary" id="setTrumpBtn">＋ 切り札を選択</button>
+            </div>
+            <div class="deck-list-group panel" id="deckTrumpList"></div>
+          </div>
         </div>
-        <div class="deck-list-group panel" id="deckLeaderList"></div>
-
-        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
-          <span>切り札</span>
-          <button class="btn small primary" id="setTrumpBtn">＋ 切り札を選択</button>
-        </div>
-        <div class="deck-list-group panel" id="deckTrumpList"></div>
       </div>
 
       <div class="deck-list-group panel" id="deckMainList"></div>

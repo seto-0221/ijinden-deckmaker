@@ -52,6 +52,45 @@
    デッキ編集のリスト行では意図せず横に伸びてしまっていたため、ここで明示的に上書きする */
 .deck-card-row .qty-row .qty-num { flex: none; width: 30px; }
 
+/* ---------- 横幅計算による安全対策: .deck-card-row .name が「縮められない」ことによる横溢れを防ぐ ----------
+   .deck-card-rowはflexアイテム(2カラムグリッドの場合はグリッドアイテムでもある)だが、既定のmin-width:autoは
+   white-space:nowrapなテキストを含む場合、「省略前の全文の幅」を最小サイズとして扱ってしまうため、
+   幅が足りない場面でtext-overflow:ellipsisが効かずに行がはみ出す恐れがある。min-width:0で明示的に
+   縮小を許可し、必ず省略記号側で収まるようにする(1カラム表示時にも安全のため常に適用する)。 */
+.deck-card-row { min-width: 0; }
+.deck-card-row .name { min-width: 0; }
+
+/* ---------- PC版(1200px以上)のみ: デッキ編集のリスト表示(list)を2カラムのCSS Gridにする ----------
+   目的: 1行が画面幅いっぱいに伸びて名前と操作ボタンの間が間延びし、視線移動が多くなっていた問題を解消する。
+   Lv/コスト(.deck-card-row .cost)は削除せず、既存どおり小さな補助情報として各行に残したまま2カラム化する。
+   type-heading(種類の見出し)・空状態ボタンは2カラムをまたいで表示する。
+   【しきい値についての注記】当初は881px以上で2カラム化する設計だったが、実効幅を計算したところ
+   881px時点でカード名欄の残り幅が理論上マイナスになり(=横溢れが確実に発生する)、1024px時点でも
+   66px程度と窮屈すぎることが判明したため、名前欄が概ね160px前後を確保できる1200pxへ引き上げた。
+   1199px以下は2カラム化せず、従来どおりの1カラム表示のままになる(60-responsive.cssの880px以下向け
+   縦積みレイアウトとは別に、881〜1199pxの帯域でも1カラムを維持する)。 */
+@media (min-width: 1200px) {
+  .deck-list-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 16px;
+    align-content: start;
+  }
+  .deck-list-2col .type-heading { grid-column: 1 / -1; }
+  .deck-list-2col > .empty-state { grid-column: 1 / -1; }
+}
+
+/* ---------- PC版(1200px以上)のみ: 統領・切り札を同じ段(横並び2カラム)にまとめる ----------
+   デフォルト(1199px以下含む)は.leader-trump-rowを普通のdiv(ブロック要素)のまま何も指定しないため、
+   .leader-trump-col(こちらもブロック要素)が縦に積まれるだけの、従来どおりの表示になる。
+   【しきい値についての注記】統領・切り札は2分割のみ(デッキ本体の4分割相当より緩い)のため、881px時点でも
+   計算上は正の値(統領75px/切り札43px)で横溢れそのものは生じないが、切り札側の名前欄が非常に窮屈になる。
+   デッキ編集リストと同じ1200pxに揃えることで、しきい値をひとつに統一し、挙動を分かりやすくしている。 */
+@media (min-width: 1200px) {
+  .leader-trump-row { display: flex; gap: 16px; align-items: flex-start; }
+  .leader-trump-col { flex: 1; min-width: 0; }
+}
+
 .stat-box { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .stat-num-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .stat-num { flex: 1; min-width: 70px; text-align: center; background: var(--bg-elev-2); border-radius: var(--radius-sm); padding: 8px 4px; }

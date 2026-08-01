@@ -279,7 +279,9 @@ function deckCardSortComparator(a, b) {
 function renderDeckCardList(containerId, list, deck, zone) {
   const el = document.getElementById(containerId);
   const gridMode = App.deckViewMode === 'grid';
-  el.className = 'deck-list-group panel ' + (gridMode ? 'card-grid' : '');
+  // 第2段階UI改善: リスト表示(list)はPC版(1200px以上)限定で2カラムのCSS Gridになる
+  // deck-list-2colクラスを付与する(1199px以下は従来どおり1カラム表示のまま)。
+  el.className = 'deck-list-group panel ' + (gridMode ? 'card-grid' : 'deck-list-2col');
   if (!list.length) {
     el.innerHTML = `<button type="button" class="empty-state" data-action="empty-open-search" data-zone="${zone}" style="padding:20px;width:100%;border:none;background:transparent;cursor:pointer;font:inherit;color:inherit;"><div class="big">➕</div>タップしてカードを検索・追加してください</button>`;
     return;
@@ -296,7 +298,8 @@ function renderDeckCardList(containerId, list, deck, zone) {
     if (!grouped[type]) continue;
     grouped[type].sort(deckCardSortComparator);
     if (!gridMode) {
-      html += `<div style="font-size:11px;font-weight:800;color:var(--text-faint);padding:4px 4px 2px;">${type} (${deckTotalQty(grouped[type].map(x => x.e))}枚)</div>`;
+      // type-heading: 2カラムグリッド内でも見出しだけは両カラムにまたがせる(CSS側で grid-column:1/-1)
+      html += `<div class="type-heading" style="font-size:11px;font-weight:800;color:var(--text-faint);padding:4px 4px 2px;">${type} (${deckTotalQty(grouped[type].map(x => x.e))}枚)</div>`;
     }
     for (const { c, e } of grouped[type]) {
       if (!c) {
